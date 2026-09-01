@@ -255,9 +255,9 @@ export default function ProjectDetail() {
                   </div>
 
                   <div className="pd__graph-pages">
-                    <button className={graphPage === 1 ? 'is-active' : ''} onClick={() => setGraphPage(1)}>Page 1</button>
-                    <button className={graphPage === 2 ? 'is-active' : ''} onClick={() => setGraphPage(2)}>Page 2</button>
-                    <button className={graphPage === 3 ? 'is-active' : ''} onClick={() => setGraphPage(3)}>Page 3</button>
+                    <button className={graphPage === 1 ? 'is-active' : ''} onClick={() => setGraphPage(1)}>Classic</button>
+                    <button className={graphPage === 2 ? 'is-active' : ''} onClick={() => setGraphPage(2)}>Minimal</button>
+                    <button className={graphPage === 3 ? 'is-active' : ''} onClick={() => setGraphPage(3)}>Neon</button>
                   </div>
 
                   {tipOpen && (
