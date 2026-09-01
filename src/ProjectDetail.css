@@ -267,6 +267,37 @@
 .pd__graph-pages button.is-active { color: var(--accent); border-bottom-color: var(--accent); }
 
 .mem-graph { flex: 1; min-height: 560px; overflow: auto; padding: 24px; }
+.mem-graph--neon { background: var(--bg); }
+
+/* ===================== Page 3: neon theme (glow is dark-mode only) ===================== */
+.mem-edge--neon { stroke-width: 2; stroke-dasharray: 3 6; }
+:root[data-theme='dark'] .mem-edge--neon {
+  filter: drop-shadow(0 0 3px currentColor) drop-shadow(0 0 6px currentColor);
+}
+.mem-edge__label--neon { font-weight: 600; }
+:root[data-theme='dark'] .mem-edge__label--neon { filter: drop-shadow(0 0 3px currentColor); }
+
+.brain-viewer--neon { border-radius: 50%; }
+:root[data-theme='dark'] .brain-viewer--neon {
+  box-shadow: 0 0 16px 2px rgba(240, 99, 122, 0.55), 0 0 40px 10px rgba(240, 99, 122, 0.25);
+}
+
+:root[data-theme='dark'] .mem-node--neon .mem-node__icon {
+  box-shadow: 0 0 8px 1px var(--glow), 0 0 18px 4px color-mix(in srgb, var(--glow) 55%, transparent);
+}
+.mem-node--neon .mem-node__label { color: var(--text); }
+:root[data-theme='dark'] .mem-node--neon .mem-node__label { text-shadow: 0 0 6px var(--glow); }
+
+.mem-card--neon {
+  background: var(--bg-elevated);
+  border-color: var(--glow);
+}
+:root[data-theme='dark'] .mem-card--neon {
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--glow) 60%, transparent), 0 0 28px 6px color-mix(in srgb, var(--glow) 30%, transparent);
+}
+.mem-card--neon b { color: var(--text); }
+.mem-card--neon small { color: var(--text-3); }
+.mem-card--neon:hover { border-color: var(--glow); }
 .mem-node.mem-node--core-plain {
   width: auto;
   z-index: 3;

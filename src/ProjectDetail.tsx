@@ -103,7 +103,7 @@ export default function ProjectDetail() {
   const [selected, setSelected] = useState<Selected>('core')
   const [zoom, setZoom] = useState(1)
   const [tipOpen, setTipOpen] = useState(true)
-  const [graphPage, setGraphPage] = useState<1 | 2>(1)
+  const [graphPage, setGraphPage] = useState<1 | 2 | 3>(1)
   const [revealedKind, setRevealedKind] = useState<Kind | null>(null)
 
   const total = Object.values(CATS).reduce((n, c) => n + c.count, 0)
@@ -257,6 +257,7 @@ export default function ProjectDetail() {
                   <div className="pd__graph-pages">
                     <button className={graphPage === 1 ? 'is-active' : ''} onClick={() => setGraphPage(1)}>Page 1</button>
                     <button className={graphPage === 2 ? 'is-active' : ''} onClick={() => setGraphPage(2)}>Page 2</button>
+                    <button className={graphPage === 3 ? 'is-active' : ''} onClick={() => setGraphPage(3)}>Page 3</button>
                   </div>
 
                   {tipOpen && (
@@ -266,7 +267,7 @@ export default function ProjectDetail() {
                     </div>
                   )}
 
-                  <div className="mem-graph">
+                  <div className={`mem-graph${graphPage === 3 ? ' mem-graph--neon' : ''}`}>
                     <div
                       className="mem-graph__canvas"
                       style={{ transform: `scale(${zoom})` }}
@@ -285,8 +286,18 @@ export default function ProjectDetail() {
                               opacity={(shown ? 1 : 0) * (matches(k) ? 1 : 0.25)}
                               className="mem-edge-fade"
                             >
-                              <line x1={x1} y1={y1} x2={x2} y2={y2} className="mem-edge" />
-                              <text x={mx} y={my - 8} className="mem-edge__label">{CATS[k].edgeLabel}</text>
+                              <line
+                                x1={x1} y1={y1} x2={x2} y2={y2}
+                                className={`mem-edge${graphPage === 3 ? ' mem-edge--neon' : ''}`}
+                                style={graphPage === 3 ? { stroke: CATS[k].color, color: CATS[k].color } : undefined}
+                              />
+                              <text
+                                x={mx} y={my - 8}
+                                className={`mem-edge__label${graphPage === 3 ? ' mem-edge__label--neon' : ''}`}
+                                style={graphPage === 3 ? { fill: CATS[k].color, color: CATS[k].color } : undefined}
+                              >
+                                {CATS[k].edgeLabel}
+                              </text>
                             </g>
                           )
                         })}
@@ -315,7 +326,9 @@ export default function ProjectDetail() {
                         onSelectDot={(k) => setSelected(k)}
                         style={{ left: `${POS.core[0] / 10}%`, top: `${(POS.core[1] / 620) * 100}%` }}
                         onDotHover={(k) => setRevealedKind(k)}
-                        variant={graphPage === 2 ? 'plain' : 'node'}
+                        variant={graphPage === 1 ? 'node' : 'plain'}
+                        neon={graphPage === 3}
+                        imgSrc={graphPage === 3 ? `${A}/brain-neon.svg` : undefined}
                       />
 
                       {(Object.keys(CATS) as Kind[]).map((k) => {
@@ -325,16 +338,24 @@ export default function ProjectDetail() {
                         return (
                           <button
                             key={k}
-                            className={`mem-node${selected === k ? ' is-selected' : ''} mem-cat-node${shown ? ' is-shown' : ' is-hidden'}`}
+                            className={`mem-node${selected === k ? ' is-selected' : ''} mem-cat-node${shown ? ' is-shown' : ' is-hidden'}${graphPage === 3 ? ' mem-node--neon' : ''}`}
                             style={{
                               left: `${x / 10}%`,
                               top: `${(y / 620) * 100}%`,
                               opacity: shown ? (matches(k) ? 1 : 0.35) : 0,
                               transitionDelay: shown ? '0.2s' : '0s',
+                              ...(graphPage === 3 ? ({ '--glow': cat.color } as CSSProperties) : {}),
                             }}
                             onClick={() => setSelected(k)}
                           >
-                            <span className="mem-node__icon" style={{ background: cat.soft, color: cat.color, borderColor: cat.color }}>
+                            <span
+                              className="mem-node__icon"
+                              style={
+                                graphPage === 3
+                                  ? { background: 'var(--bg-elevated)', color: cat.color, borderColor: cat.color }
+                                  : { background: cat.soft, color: cat.color, borderColor: cat.color }
+                              }
+                            >
                               <cat.Icon />
                             </span>
                             <span className="mem-node__label">{cat.label}<br />{cat.count}</span>
@@ -351,12 +372,13 @@ export default function ProjectDetail() {
                         return (
                           <button
                             key={`card-${k}`}
-                            className={`mem-card${shown ? ' is-shown' : ' is-hidden'}`}
+                            className={`mem-card${shown ? ' is-shown' : ' is-hidden'}${graphPage === 3 ? ' mem-card--neon' : ''}`}
                             style={{
                               left: `${(x + cardOffset[0]) / 10}%`,
                               top: `${((y + cardOffset[1]) / 620) * 100}%`,
                               opacity: shown ? (matches(k) ? 1 : 0.35) : 0,
                               transitionDelay: shown ? '0.4s' : '0s',
+                              ...(graphPage === 3 ? ({ '--glow': cat.color } as CSSProperties) : {}),
                             }}
                             onClick={() => setSelected(k)}
                           >
@@ -401,15 +423,20 @@ function BrainCore({
   style,
   variant = 'node',
   onDotHover,
+  neon = false,
+  imgSrc = BRAIN_IMG,
 }: {
   selected: Selected
   onSelectCore: () => void
   onSelectDot: (k: Kind) => void
   style?: CSSProperties
   variant?: 'node' | 'plain'
+  neon?: boolean
   onDotHover?: (k: Kind | null) => void
+  imgSrc?: string
 }) {
   const [imgOk, setImgOk] = useState(true)
+  useEffect(() => setImgOk(true), [imgSrc])
   const [rot, setRot] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [hoverKind, setHoverKind] = useState<Kind | null>(null)
@@ -466,7 +493,7 @@ function BrainCore({
     >
       <div
         ref={stageRef}
-        className={`brain-viewer${variant === 'plain' ? ' brain-viewer--plain' : ''}`}
+        className={`brain-viewer${variant === 'plain' ? ' brain-viewer--plain' : ''}${neon ? ' brain-viewer--neon' : ''}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -481,7 +508,7 @@ function BrainCore({
         >
           {imgOk ? (
             <img
-              src={BRAIN_IMG}
+              src={imgSrc}
               alt="Core context"
               className="brain-viewer__img"
               draggable={false}
