@@ -8,7 +8,7 @@ import {
   IconSearch, IconBell, IconHelp, IconMic, IconSend, IconScope, IconFolderPlus,
   IconSpark, IconSun, IconMoon, IconClose, IconFolder, IconSliders, IconChat, IconFork,
   IconStar, IconGrid, IconBars, IconDownload, IconShare, IconSort, IconFile, IconRecords, IconClock,
-  IconPalette,
+  IconPalette, IconCode,
 } from './icons'
 import DesignLab from './DesignLab'
 import ProjectDetail from './ProjectDetail'
@@ -57,10 +57,12 @@ function getInitialTheme(): Theme {
 }
 
 const A = '/assets'
+const BUILD_LOGO = `${A}/keos-build-mark.svg`
 
 type Item = { id: string; label: string; Icon: (p: { className?: string }) => JSX.Element }
 
 const build: Item[] = [
+  { id: 'codegenie', label: 'CodeGenie', Icon: IconCode },
   { id: 'agents', label: 'Agent Store', Icon: IconAgent },
   { id: 'workflows', label: 'Workflows', Icon: IconWorkflow },
   { id: 'market', label: 'Marketplace', Icon: IconMarket },
@@ -163,6 +165,15 @@ export default function Conversation() {
     setActive('newchat')
   }
 
+  const [codeMode, setCodeMode] = useState<'chat' | 'code'>('chat')
+  const newBuild = () => {
+    setMessages([])
+    setInput('')
+    setActiveChatId(null)
+    setActive('codegenie')
+    setCodeMode('chat')
+  }
+
   const composerBlock = (
     <>
       <div className="chips">
@@ -236,24 +247,53 @@ export default function Conversation() {
       {/* ===================== SIDEBAR ===================== */}
       <aside className="sidebar">
         <div className="sidebar__top">
-          <img className="sidebar__logo" src={`${A}/kframe.svg`} alt="KEOS" />
-          <button
-            className="sidebar__toggle"
-            onClick={() => setExpanded((v) => !v)}
-            aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            <IconPanel />
-          </button>
+          <img
+            className="sidebar__logo"
+            src={active === 'codegenie' ? BUILD_LOGO : `${A}/kframe.svg`}
+            alt="KEOS"
+          />
+          <div className="sidebar__top-right">
+            {expanded && active === 'codegenie' && (
+              <div className="mode-toggle" role="radiogroup" aria-label="Chat or code mode">
+                <button
+                  className={`mode-toggle__btn${codeMode === 'chat' ? ' is-active' : ''}`}
+                  onClick={() => setCodeMode('chat')}
+                  role="radio"
+                  aria-checked={codeMode === 'chat'}
+                  aria-label="Chat mode"
+                >
+                  <IconChat className="mode-toggle__icon" />
+                  <span className="mode-toggle__dot" />
+                </button>
+                <button
+                  className={`mode-toggle__btn${codeMode === 'code' ? ' is-active' : ''}`}
+                  onClick={() => setCodeMode('code')}
+                  role="radio"
+                  aria-checked={codeMode === 'code'}
+                  aria-label="Code mode"
+                >
+                  <IconCode className="mode-toggle__icon" />
+                </button>
+              </div>
+            )}
+            <button
+              className="sidebar__toggle"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              <IconPanel />
+            </button>
+          </div>
         </div>
 
         <div className="sidebar__scroll">
           <button
-            className={`nav__item nav__item--primary${active === 'newchat' ? ' is-active' : ''}`}
-            onClick={newChat}
-            title={!expanded ? 'New Chat' : undefined}
+            className={`nav__item nav__item--primary${active === 'newchat' || active === 'codegenie' ? ' is-active' : ''}`}
+            onClick={active === 'codegenie' ? newBuild : newChat}
+            title={!expanded ? (active === 'codegenie' ? 'New Build' : 'New Chat') : undefined}
           >
             <IconNewChat className="nav__icon" />
-            <span className="nav__label">New Chat</span>
+            <span className="nav__label">{active === 'codegenie' ? 'New Build' : 'New Chat'}</span>
           </button>
 
           {/* Projects (expandable) */}
@@ -313,7 +353,7 @@ export default function Conversation() {
       {chatsOpen && active !== 'project' && (
         <aside className="chats">
           <div className="chats__head">
-            <span className="chats__title">Chats</span>
+            <span className="chats__title">{active === 'codegenie' ? 'Sessions' : 'Chats'}</span>
             <button className="chats__icon" aria-label="Filter chats">
               <IconSliders />
             </button>
@@ -383,13 +423,15 @@ export default function Conversation() {
               aria-pressed={chatsOpen}
             >
               <IconChat className="topbar__chats-icon" />
-              <span>Chats</span>
+              <span>{active === 'codegenie' ? 'Sessions' : 'Chats'}</span>
             </button>
           )}
           <nav className="crumbs">
             <span>KEOS</span>
             <span className="crumbs__sep">›</span>
-            <span className="crumbs__current">{active === 'project' ? 'All Projects' : 'Chats'}</span>
+            <span className={`crumbs__current${active === 'codegenie' ? ' crumbs__current--accent' : ''}`}>
+              {active === 'project' ? 'All Projects' : active === 'codegenie' ? 'CodeGenie' : 'Chats'}
+            </span>
           </nav>
           <div className="topbar__actions">
             <button aria-label="Search"><IconSearch /></button>
@@ -411,6 +453,14 @@ export default function Conversation() {
           <DesignLab />
         ) : active === 'project' ? (
           <ProjectDetail />
+        ) : active === 'codegenie' && codeMode === 'code' ? (
+          <section className="convo">
+            <div className="convo__inner">
+              <span className="codegenie-code__icon"><IconCode /></span>
+              <h1 className="convo__title">Code Workspace</h1>
+              <p className="convo__subtitle">Your CodeGenie build environment is coming soon.</p>
+            </div>
+          </section>
         ) : (
         <>
         <section className={`convo${hasThread ? ' is-thread' : ''}`}>
@@ -434,11 +484,20 @@ export default function Conversation() {
             </>
           ) : (
             <div className="convo__inner">
-              <img className="convo__logo" src={`${A}/kframe.svg`} alt="KEOS" />
-              <h1 className="convo__title">Welcome To Keos Conversation</h1>
+              <img
+                className="convo__logo"
+                src={active === 'codegenie' ? BUILD_LOGO : `${A}/kframe.svg`}
+                alt="KEOS"
+              />
+              <h1 className="convo__title">
+                {active === 'codegenie' ? "Halfway there. Let's solve this, Aswini." : 'Welcome To Keos Conversation'}
+              </h1>
               <p className="convo__subtitle">
-                Ask Anything Across Your Project's Knowledge — Or Type @<br />
-                To Bring An Agent In.
+                {active === 'codegenie' ? (
+                  "Big goals take focus. Let's get to work."
+                ) : (
+                  <>Ask Anything Across Your Project's Knowledge — Or Type @<br />To Bring An Agent In.</>
+                )}
               </p>
               <div className="dock dock--hero">{composerBlock}</div>
             </div>

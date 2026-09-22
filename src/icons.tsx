@@ -43,6 +43,7 @@ export const IconChat = S('M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9
 export const IconFork = S('M6.5 4a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z|M17.5 4a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z|M12 15.6a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z|M6.5 8.4c0 3.4 5.5 3.2 5.5 7.2|M17.5 8.4c0 3.4-5.5 3.2-5.5 7.2')
 export const IconStar = S('M12 3.5l2.47 5.01 5.53.8-4 3.9.94 5.5L12 16.1l-4.95 2.6.94-5.5-4-3.9 5.53-.8z')
 export const IconGrid = S('M4 5h16v14H4z|M9.33 5v14|M14.66 5v14')
+export const IconCode = S('M8 6l-5 6 5 6|M16 6l5 6-5 6')
 export const IconBars = S('M3 20h18|M6 20v-5|M12 20V8|M18 20v-9')
 export const IconDownload = S('M12 4v11|M8 11l4 4 4-4|M5 20h14')
 export const IconShare = S('M4 13v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6|M12 3v12|M8 7l4-4 4 4')
