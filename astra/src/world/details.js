@@ -125,43 +125,151 @@ export function makeSunflowers(pts) {
 
 // ---------------------------------------------------------------- creatures
 
-/** Butterflies flitting around a centre. */
+// Butterfly wing outline (one side): a big rounded forewing and a smaller hindwing.
+// Units: x outward from the body, y forward.
+function butterflyWingShape() {
+  const s = new THREE.Shape();
+  s.moveTo(0.0, 0.015);
+  s.bezierCurveTo(0.03, 0.12, 0.14, 0.22, 0.225, 0.19);
+  s.bezierCurveTo(0.27, 0.17, 0.24, 0.08, 0.2, 0.035);
+  s.bezierCurveTo(0.16, 0.005, 0.07, 0.0, 0.03, -0.005);
+  s.bezierCurveTo(0.12, -0.03, 0.19, -0.1, 0.16, -0.155);
+  s.bezierCurveTo(0.13, -0.2, 0.06, -0.15, 0.03, -0.09);
+  s.bezierCurveTo(0.015, -0.06, 0.0, -0.03, 0.0, -0.015);
+  return s;
+}
+
+let _wingTex = null;
+function butterflyWingTexture(bounds) {
+  if (_wingTex) return _wingTex;
+  const W = 256, H = 256;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const shape = butterflyWingShape();
+  const map = (x, y) => [((x - bounds.min.x) / (bounds.max.x - bounds.min.x)) * W, (1 - (y - bounds.min.y) / (bounds.max.y - bounds.min.y)) * H];
+  const pts = shape.getPoints(40);
+  const path = new Path2D();
+  pts.forEach((p, i) => { const [x, y] = map(p.x, p.y); i ? path.lineTo(x, y) : path.moveTo(x, y); });
+  path.closePath();
+  g.save();
+  g.clip(path);
+  // base (tinted per butterfly by instance colour)
+  g.fillStyle = 'rgb(215,215,215)';
+  g.fillRect(0, 0, W, H);
+  // soft inner glow toward the body
+  const [bx, by] = map(0, 0);
+  const grd = g.createRadialGradient(bx, by, 4, bx, by, 150);
+  grd.addColorStop(0, 'rgba(255,255,255,0.9)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, W, H);
+  // veins radiating from the body
+  g.strokeStyle = 'rgba(40,24,20,0.55)';
+  g.lineWidth = 2.2;
+  for (const [x, y] of [[0.22, 0.18], [0.24, 0.12], [0.21, 0.05], [0.16, -0.14], [0.12, -0.17], [0.09, -0.12]]) {
+    const [ex, ey] = map(x, y);
+    g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo((bx + ex) / 2 + 6, (by + ey) / 2, ex, ey); g.stroke();
+  }
+  // dark border band with pale spots
+  g.lineWidth = 26;
+  g.strokeStyle = 'rgb(38,26,24)';
+  g.stroke(path);
+  g.fillStyle = 'rgb(255,250,236)';
+  for (let i = 4; i < pts.length - 4; i += 3) {
+    const p = pts[i];
+    const cx = p.x * 0.9, cy = p.y * 0.9;
+    if (Math.hypot(p.x, p.y) < 0.09) continue;
+    const [x, y] = map(cx, cy);
+    g.beginPath(); g.arc(x, y, 3.2, 0, 7); g.fill();
+  }
+  // eye-spot on the forewing
+  const [ex, ey] = map(0.17, 0.12);
+  g.fillStyle = 'rgb(38,26,24)'; g.beginPath(); g.arc(ex, ey, 9, 0, 7); g.fill();
+  g.fillStyle = 'rgb(255,250,236)'; g.beginPath(); g.arc(ex, ey, 4, 0, 7); g.fill();
+  g.restore();
+  _wingTex = new THREE.CanvasTexture(c);
+  _wingTex.colorSpace = THREE.SRGBColorSpace;
+  _wingTex.userData.shared = true;
+  return _wingTex;
+}
+
+function butterflyWingGeometry() {
+  const geo = new THREE.ShapeGeometry(butterflyWingShape(), 10);
+  geo.computeBoundingBox();
+  const b = geo.boundingBox;
+  const p = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) - b.min.x) / (b.max.x - b.min.x), (p.getY(i) - b.min.y) / (b.max.y - b.min.y));
+  const bounds = { min: b.min.clone(), max: b.max.clone() };
+  geo.rotateX(-Math.PI / 2);
+  geo.scale(1, 1, -1); // keep "forward" on +z after the rotation
+  return { geo, bounds };
+}
+
+/** Butterflies flitting around a centre: shaped, patterned wings, a body and antennae. */
 export function makeButterflies({ count = 24, center = new THREE.Vector3(), radius = 30, heightAt, seed = 5, colors = ['#ffffff', '#ffd23f', '#f2703c', '#8fd0ff', '#e58fd6'] } = {}) {
-  const wing = new THREE.PlaneGeometry(0.16, 0.12);
-  wing.translate(0.08, 0, 0);
-  const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-  const L = new THREE.InstancedMesh(wing, mat, count), R = new THREE.InstancedMesh(wing, mat, count);
+  const { geo: wingR, bounds } = butterflyWingGeometry();
+  const wingL = wingR.clone().scale(-1, 1, 1);
+  const mat = new THREE.MeshBasicMaterial({ map: butterflyWingTexture(bounds), side: THREE.DoubleSide, alphaTest: 0.3 });
+  const bodyGeo = mergeGeometries([
+    new THREE.CapsuleGeometry(0.014, 0.1, 4, 8).rotateX(Math.PI / 2),
+    new THREE.SphereGeometry(0.018, 8, 6).translate(0, 0.005, 0.065),
+    new THREE.CylinderGeometry(0.0025, 0.0025, 0.09, 4).rotateX(Math.PI / 2 - 0.5).rotateY(0.35).translate(0.018, 0.035, 0.1),
+    new THREE.CylinderGeometry(0.0025, 0.0025, 0.09, 4).rotateX(Math.PI / 2 - 0.5).rotateY(-0.35).translate(-0.018, 0.035, 0.1),
+    new THREE.SphereGeometry(0.007, 6, 4).translate(0.033, 0.055, 0.135),
+    new THREE.SphereGeometry(0.007, 6, 4).translate(-0.033, 0.055, 0.135),
+  ].map((g) => { g.deleteAttribute('uv'); return g.index ? g.toNonIndexed() : g; }));
+  const L = new THREE.InstancedMesh(wingL, mat, count), R = new THREE.InstancedMesh(wingR, mat, count);
+  const B = new THREE.InstancedMesh(bodyGeo, new THREE.MeshBasicMaterial({ color: '#2a1c18' }), count);
   const rng = mulberry32(seed);
   const bs = [];
   for (let i = 0; i < count; i++) {
     const c = C(colors[i % colors.length]);
     L.setColorAt(i, c); R.setColorAt(i, c);
-    bs.push({ a: rng() * 6.28, r: 3 + rng() * radius, h: 0.6 + rng() * 1.6, sp: 0.2 + rng() * 0.4, ph: rng() * 10, cx: center.x + (rng() - 0.5) * radius, cz: center.z + (rng() - 0.5) * radius });
+    bs.push({
+      a: rng() * 6.28, h: 0.5 + rng() * 1.6, sp: 0.18 + rng() * 0.3, ph: rng() * 10, sc: 1.1 + rng() * 0.6,
+      cx: center.x + (rng() - 0.5) * radius * 2, cz: center.z + (rng() - 0.5) * radius * 2, wr: 2 + rng() * 3,
+    });
   }
   const g = new THREE.Group();
-  g.add(L, R);
-  L.frustumCulled = R.frustumCulled = false;
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+  g.add(L, R, B);
+  L.frustumCulled = R.frustumCulled = B.frustumCulled = false;
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  const pos = (b, t, out) => {
+    const a = b.a + t * b.sp;
+    const x = b.cx + Math.cos(a) * b.wr + Math.sin(t * 0.7 + b.ph) * 1.2;
+    const z = b.cz + Math.sin(a * 1.3) * b.wr;
+    const y = (heightAt ? heightAt(x, z) ?? center.y : center.y) + b.h + Math.sin(t * 1.7 + b.ph) * 0.35;
+    return out.set(x, y, z);
+  };
+  const nxt = new THREE.Vector3();
   g.userData.update = (t) => {
     bs.forEach((b, i) => {
-      const a = b.a + t * b.sp;
-      const x = b.cx + Math.cos(a) * 3 + Math.sin(t * 0.7 + b.ph) * 1.5;
-      const z = b.cz + Math.sin(a * 1.3) * 3;
-      const y = (heightAt ? heightAt(x, z) ?? 0 : center.y) + b.h + Math.sin(t * 2 + b.ph) * 0.3;
-      const flap = Math.sin(t * 22 + b.ph) * 1.1;
-      v.set(x, y, z);
-      e.set(0, -a, flap); q.setFromEuler(e); m4.compose(v, q, one); L.setMatrixAt(i, m4);
-      e.set(0, -a + Math.PI, -flap); q.setFromEuler(e); m4.compose(v, q, one); R.setMatrixAt(i, m4);
+      pos(b, t, v);
+      pos(b, t + 0.05, nxt);
+      const yaw = Math.atan2(nxt.x - v.x, nxt.z - v.z);
+      const beat = Math.sin(t * 16 + b.ph);
+      const flap = 0.45 + beat * 0.75; // wings lift high, then sweep down
+      const bob = beat * 0.02;
+      v.y += bob;
+      sc.setScalar(b.sc);
+      e.set(-0.25, yaw, flap); q.setFromEuler(e); m4.compose(v, q, sc); R.setMatrixAt(i, m4);
+      e.set(-0.25, yaw, -flap); q.setFromEuler(e); m4.compose(v, q, sc); L.setMatrixAt(i, m4);
+      e.set(-0.25, yaw, 0); q.setFromEuler(e); m4.compose(v, q, sc); B.setMatrixAt(i, m4);
     });
-    L.instanceMatrix.needsUpdate = R.instanceMatrix.needsUpdate = true;
+    L.instanceMatrix.needsUpdate = R.instanceMatrix.needsUpdate = B.instanceMatrix.needsUpdate = true;
   };
   return g;
 }
 
 /** A flock of birds wheeling high overhead. */
 export function makeBirds({ count = 14, center = new THREE.Vector3(0, 60, 0), radius = 90, color = '#2a2a38', seed = 8 } = {}) {
-  const wing = new THREE.PlaneGeometry(0.9, 0.28);
-  wing.translate(0.45, 0, 0);
+  const ws = new THREE.Shape();
+  ws.moveTo(0, 0.14);
+  ws.bezierCurveTo(0.35, 0.2, 0.7, 0.1, 1.05, -0.12);
+  ws.bezierCurveTo(0.7, -0.08, 0.35, -0.12, 0.0, -0.12);
+  const wing = new THREE.ShapeGeometry(ws, 8);
+  wing.rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: true });
   const L = new THREE.InstancedMesh(wing, mat, count), R = new THREE.InstancedMesh(wing, mat, count);
   L.frustumCulled = R.frustumCulled = false;
