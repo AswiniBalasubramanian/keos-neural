@@ -1,4 +1,4 @@
-// Astra admin: player management, progression, and content (worlds, missions, NPCs,
+// 3rd World admin: player management, progression, and content (worlds, missions, NPCs,
 // characters, rewards). Reads the same localStorage the game writes — kept entirely
 // separate from the immersive game interface.
 import './admin.css';
@@ -52,7 +52,7 @@ function render() {
   const players = readPlayers();
   const tabs = [['dashboard', 'Dashboard'], ['players', 'Players'], ['worlds', 'Worlds'], ['missions', 'Missions'], ['npcs', 'NPCs'], ['characters', 'Characters'], ['rewards', 'Rewards'], ['data', 'Import / Export']];
   root.innerHTML = `<div class="layout">
-    <aside><div class="brand">ASTRA<small>Admin console</small></div>
+    <aside><div class="brand">3RD WORLD<small>Admin console</small></div>
       <nav>${tabs.map(([id, n]) => `<button data-tab="${id}" class="${tab === id ? 'on' : ''}">${n}</button>`).join('')}</nav>
       <div class="foot">Data lives in this browser's storage.<br><a href="./index.html">Open the game →</a></div>
     </aside>

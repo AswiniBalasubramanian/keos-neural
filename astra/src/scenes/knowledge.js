@@ -9,6 +9,7 @@ import { makeNPC } from '../systems/character.js';
 import { boxCollider } from '../systems/physics.js';
 import { mulberry32, clamp } from '../core/noise.js';
 import { arrival, rewardCore, addReturnCar } from './common.js';
+import * as D from '../world/details.js';
 
 const LOWER_Y = -18;
 const RAMP = { x: 2.6, z0: 29, z1: 80 };
@@ -87,6 +88,7 @@ export default class KnowledgeWorld extends World {
     this.white = toon('#e8dfd0');
     this.buildUpper();
     this.buildLower();
+    this.decorate();
     this.add(makeMotes({ count: 400, center: new THREE.Vector3(0, -20, 40), spread: new THREE.Vector3(120, 50, 160), color: '#ffe0a0', size: 5, opacity: 0.8, rise: 0.4 }));
   }
 
@@ -355,6 +357,63 @@ export default class KnowledgeWorld extends World {
     this.overLight = new THREE.PointLight('#8a9ad8', 6, 60, 1.2);
     this.overLight.position.set(0, LOWER_Y + 10, 102);
     s.add(this.overLight);
+  }
+
+  decorate() {
+    const s = this.scene;
+    const L = LOWER_Y;
+    // plaza: lamp ring, fountain, benches, banners, flower beds
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const x = Math.cos(a) * 27.5, z = Math.sin(a) * 27.5;
+      if (Math.abs(x) < 5 && z > 0) continue;
+      const lp = D.lampPost(x, 0, z, { color: '#c9a860', glow: '#ffe0a0', height: 3.6 });
+      lp.rotation.y = -a + Math.PI;
+      this.add(lp);
+    }
+    this.add(D.fountain(0, 0, 9, { r: 2.6 }));
+    for (const [x, z, ry] of [[-4.6, 9, Math.PI / 2], [4.6, 9, -Math.PI / 2], [0, 13.6, Math.PI]]) this.add(D.bench(x, 0, z, ry, '#e8dfd0'));
+    for (const x of [-10.5, -6, 6, 10.5]) this.add(D.banner(x, 0, -8.2, { color: x < 0 ? '#a9203e' : '#3f5fa8', h: 6 }));
+    const flowers = [];
+    for (let i = 0; i < 160; i++) {
+      const a = (i / 160) * Math.PI * 2 + (i % 3) * 0.02, r = 24.5 + (i % 3) * 0.35;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (Math.abs(x) < 5 && z > 0) continue;
+      flowers.push({ x, y: 0.12, z, s: 0.9, color: ['#ffffff', '#ffcf7a', '#e58fd6', '#f2703c'][i % 4] });
+    }
+    s.add(D.scatter(new THREE.SphereGeometry(0.16, 8, 6), toon('#ffffff'), flowers, { colors: true, cast: false }));
+    const hedge = D.scatter(new THREE.BoxGeometry(1, 0.6, 0.6), toon('#6aa84f'), Array.from({ length: 30 }, (_, i) => { const a = (i / 30) * Math.PI * 2; return { x: Math.cos(a) * 25.8, y: 0.3, z: Math.sin(a) * 25.8, ry: -a + Math.PI / 2 }; }).filter((p) => !(Math.abs(p.x) < 5 && p.z > 0)));
+    s.add(hedge);
+    this.add(D.makeBirds({ count: 18, center: new THREE.Vector3(0, 45, -20), radius: 70, color: '#f5efe4' }));
+
+    // lower district: lived-in clutter
+    this.add(D.laundryLine(-22, 94, -12, 94, () => L, { colors: ['#e8dcc4', '#8a7a6a', '#a9203e', '#5d93c9'] }));
+    this.add(D.laundryLine(8, 112, 22, 112, () => L, { seed: 7 }));
+    for (const [x, z, sc] of [[-24, 100, 0.9], [-23, 101.2, 0.7], [23.5, 99, 0.9], [22, 108, 0.8], [-8, 120, 0.7]]) this.add(D.crate(x, L, z, sc, x));
+    for (const [x, z] of [[24, 102], [-24, 106], [-4, 121]]) this.add(D.barrel(x, L, z, 0.9, '#6a5a4a'));
+    for (const [x, z] of [[-6, 99], [7, 106], [-10, 108]]) {
+      const pud = new THREE.Mesh(new THREE.CircleGeometry(1 + Math.abs(x) * 0.05, 20), new THREE.MeshBasicMaterial({ color: '#5a6a8a', transparent: true, opacity: 0.5 }));
+      pud.rotation.x = -Math.PI / 2;
+      pud.position.set(x, L + 0.02, z);
+      pud.scale.set(1.4, 1, 1);
+      s.add(pud);
+    }
+    // chalk drawings the children made
+    const chalk = (x, z, draw) => {
+      const tex = canvasTexture(256, 256, draw);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(x, L + 0.03, z);
+      s.add(m);
+    };
+    chalk(-4, 104, (g) => { g.strokeStyle = 'rgba(255,240,220,0.85)'; g.lineWidth = 5; g.beginPath(); g.arc(128, 128, 60, 0, 7); g.stroke(); for (let i = 0; i < 8; i++) { const a = i * 0.785; g.beginPath(); g.moveTo(128 + Math.cos(a) * 75, 128 + Math.sin(a) * 75); g.lineTo(128 + Math.cos(a) * 110, 128 + Math.sin(a) * 110); g.stroke(); } });
+    chalk(5, 100, (g) => { g.strokeStyle = 'rgba(255,200,160,0.8)'; g.lineWidth = 5; for (let i = 0; i < 4; i++) g.strokeRect(30 + i * 50, 60 + (i % 2) * 60, 46, 46); g.font = '40px sans-serif'; g.fillStyle = 'rgba(255,240,220,0.8)'; g.fillText('1 2 3 4', 40, 230); });
+    // pipes running along the homes
+    for (const z of [88.1, 117.9]) { const pipe = cyl(0.12, 0.12, 48, '#6a6a70', 0, L + 4.3, z, 8); pipe.rotation.z = Math.PI / 2; s.add(pipe); }
+    for (const [x, z] of [[-18, 88], [2, 88], [-12, 118], [14, 118]]) s.add(cyl(0.1, 0.1, 4.3, '#6a6a70', x, L + 2.15, z, 8));
+    s.add(D.stringLights(new THREE.Vector3(-20, L + 4.2, 96), new THREE.Vector3(20, L + 4.2, 96), { bulbs: 16, color: '#ffb870', sag: 1 }));
+    s.add(D.stringLights(new THREE.Vector3(-20, L + 4.2, 110), new THREE.Vector3(20, L + 4.2, 110), { bulbs: 16, color: '#ffb870', sag: 1 }));
+    this.add(D.signpost(3.5, L, 82, 0, ['ARCHIVE ↑']));
   }
 
   lightLantern(L, instant = false) {

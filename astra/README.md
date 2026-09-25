@@ -1,4 +1,4 @@
-# Astra — a cinematic space adventure (three.js)
+# 3rd World — a cinematic space adventure (three.js)
 
 *Helping others gives us the strength to save the people we love.*
 
@@ -33,7 +33,7 @@ Dev shortcut: `/astra/?dev=home|space|farm|knowledge|hunger` jumps straight into
 
 Home (Mother, the machine, the mission) → walk out → car → drive and lift off → Space Hub →
 **Black Hole 01: Farm World** (Harvest Day) · **02: Knowledge World** (Share Knowledge — teach
-four children) · **03: Hunger World** (Feed the World — gather, repair the dock, fish, cook,
+four children) · **03: Hunger World** (Feed the World — gather fallen branches, driftwood and stones (no tree cutting), repair the dock, fish, cook,
 deliver) → 3 / 3 cores → Home is calling → land → insert the cores → dinner with Mother → final wide shot.
 
 ## Look

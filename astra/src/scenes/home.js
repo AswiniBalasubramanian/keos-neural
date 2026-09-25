@@ -12,6 +12,7 @@ import { buildCharacter } from '../systems/character.js';
 import { boxCollider } from '../systems/physics.js';
 import { fbm, mulberry32, smoothstep, distToPath, clamp } from '../core/noise.js';
 import { wait } from '../ui/overlay.js';
+import * as D from '../world/details.js';
 
 const FLOOR = 0.15;
 const HOUSE = { x0: -7, x1: 7, z0: -5, z1: 5 };
@@ -146,6 +147,7 @@ export default class HomeWorld extends World {
 
     this.buildHouse();
     this.buildInterior();
+    this.decorate(q);
   }
 
   // ------------------------------------------------------------------ house
@@ -401,6 +403,81 @@ export default class HomeWorld extends World {
       shaft.rotation.set(-0.6, ry, 0);
       h.add(shaft);
     }
+  }
+
+  decorate(q) {
+    const s = this.scene, sunDir = this.sunDir;
+    const H = (x, z) => this.terrainH(x, z);
+    const inHouse = (x, z) => x > HOUSE.x0 - 1 && x < HOUSE.x1 + 1 && z > HOUSE.z0 - 1 && z < HOUSE.z1 + 2.5;
+    const clearOf = (x, z, d = 2) => !inHouse(x, z) && distToPath(x, z, PATH) > d && Math.hypot(x - CAR_SPOT.x, z - CAR_SPOT.z) > 5;
+    const ring = (r0, r1) => (rng) => { const a = rng() * 6.28, r = r0 + rng() * (r1 - r0); const x = Math.cos(a) * r, z = 8 + Math.sin(a) * r; return clearOf(x, z) ? [x, z] : null; };
+
+    // ground cover
+    const hugs = [];
+    for (let i = 0; i < 26; i++) {
+      const t = i / 26, side = i % 4;
+      const x = side < 2 ? HOUSE.x0 - 0.6 + t * 0 + (side ? HOUSE.x1 - HOUSE.x0 + 1.2 : 0) : -6 + ((i * 3.1) % 12);
+      const z = side < 2 ? -4.5 + ((i * 1.7) % 9) : side === 2 ? HOUSE.z0 - 0.7 : HOUSE.z1 + 0.7;
+      if (Math.abs(x) < 1.6 && z > 4) continue;
+      hugs.push({ x, y: 0, z, s: 0.7 + (i % 3) * 0.15, ry: i });
+    }
+    this.add(D.makeBushes([...hugs, ...D.samplePoints(Math.floor(90 * q), ring(12, 90), H, 11)], { sunDir }));
+    s.add(D.makeFerns(D.samplePoints(Math.floor(140 * q), ring(10, 80), H, 12)));
+    s.add(D.makeMushrooms(D.samplePoints(60, ring(14, 60), H, 13, (r) => ({ s: 0.8 + r() * 0.8 }))));
+    s.add(D.makePebbles(D.samplePoints(260, (rng) => { const i = Math.floor(rng() * (PATH.length - 1)); const t = rng(); const [ax, az] = PATH[i], [bx, bz] = PATH[i + 1]; const x = ax + (bx - ax) * t + (rng() - 0.5) * 4.5, z = az + (bz - az) * t + (rng() - 0.5) * 4.5; return inHouse(x, z) ? null : [x, z]; }, H, 14)));
+    // stepping stones from the porch to the car
+    const stones = [];
+    for (let z = 7; z < 19; z += 0.9) stones.push({ x: (Math.sin(z * 1.3) * 0.25), y: H(0, z) + 0.02, z, s: 1, ry: z, sx: 2.6, sy: 0.4, sz: 2 });
+    s.add(D.scatter(new THREE.CylinderGeometry(0.2, 0.22, 0.12, 9), toon('#b9b2a8'), stones, { cast: false }));
+
+    // garden beds with vegetables, a fence around them
+    const bed = new THREE.Group();
+    for (let r = 0; r < 3; r++) {
+      bed.add(box(4.4, 0.25, 0.9, '#7a5a3e', 11, H(11, -2 + r * 1.6) + 0.1, -2 + r * 1.6));
+      for (let k = 0; k < 6; k++) {
+        const veg = sphere(0.22, r === 1 ? '#e0703a' : '#7cb342', 9.2 + k * 0.72, H(11, -2 + r * 1.6) + 0.35, -2 + r * 1.6);
+        veg.scale.set(1, r === 1 ? 0.7 : 0.8, 1);
+        bed.add(veg);
+      }
+    }
+    s.add(bed);
+    this.colliders.push({ type: 'box', minX: 8.6, maxX: 13.4, minZ: -2.6, maxZ: 1.8 });
+    s.add(D.fence([[8, -3.4], [14.2, -3.4], [14.2, 2.6], [10.8, 2.6]], H, { color: '#efe4cc' }));
+
+    // homestead props
+    this.add(D.well(-11.5, H(-11.5, 13), 13));
+    this.add(D.woodpile(8.3, H(8.3, -4.2), -4.2, Math.PI / 2));
+    this.add(D.laundryLine(-10.5, -3, -10.5, 5, H));
+    this.add(D.bench(3.6, H(3.6, 8.6), 8.6, Math.PI));
+    this.add(D.lampPost(1.9, H(1.9, 12), 12, { color: '#3b3b40' }));
+    this.add(D.barrel(6.2, H(6.2, 4.6), 5.9, 0.9, '#6b4b33'));
+    this.add(D.signpost(4, H(4, 30), 30, 0.4, ['HOME', 'MEADOW']));
+    this.add(D.makeChickens({ count: 4, area: { x0: 8.5, x1: 14, z0: 3, z1: 7.5 }, heightAt: H, seed: 6 }));
+    this.add(D.makeButterflies({ count: 30, center: new THREE.Vector3(0, 0, 10), radius: 26, heightAt: H }));
+    this.add(D.makeBirds({ count: 12, center: new THREE.Vector3(-20, 55, -30), radius: 110 }));
+    // window boxes with flowers
+    for (const x of [-3.9, 3.8]) {
+      s.add(box(1.9, 0.25, 0.3, '#8a5a3a', x, FLOOR + 0.72, 5.3));
+      for (let k = 0; k < 7; k++) s.add(sphere(0.09, ['#ff8c5a', '#ffffff', '#e58fd6', '#ffd23f'][k % 4], x - 0.8 + k * 0.27, FLOOR + 0.93, 5.3));
+    }
+    // curtains and interior warmth
+    const curtain = toon('#e8b8a0', { side: THREE.DoubleSide });
+    for (const x of [-5.3, -2.5, 2.7, 4.9]) { const c = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 1.7), curtain); c.position.set(x, FLOOR + 1.6, 4.85); this.house.add(c); }
+    const kitchenHerbs = [3.6, 4.0, 4.4, 4.8];
+    kitchenHerbs.forEach((x, i) => { this.house.add(cyl(0.08, 0.06, 0.14, '#c56a3c', x, FLOOR + 1.3, -4.8)); this.house.add(sphere(0.1, i % 2 ? '#6aa84f' : '#8cc152', x, FLOOR + 1.45, -4.8)); });
+    for (let i = 0; i < 3; i++) this.house.add(cyl(0.12, 0.1, 0.12, ['#3b4152', '#a9203e', '#8a8f98'][i], 3.5 + i * 0.45, FLOOR + 2.55, -4.2));
+    this.house.add(box(1.4, 0.02, 0.35, '#a9203e', 3.8, FLOOR + 0.83, 2.4));
+    // a sleeping cat on the living-room rug
+    const cat = new THREE.Group();
+    const fur = '#e39a4a';
+    const cb = sphere(0.22, fur, 0, 0.16, 0); cb.scale.set(1.3, 0.7, 1); cat.add(cb);
+    cat.add(sphere(0.13, fur, 0.3, 0.17, 0.05));
+    for (const z of [-0.05, 0.12]) { const ear = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.09, 6), toon(fur)); ear.position.set(0.32, 0.3, z); cat.add(ear); }
+    const tail = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.04, 6, 16, Math.PI), toon(fur)); tail.rotation.x = Math.PI / 2; tail.position.set(-0.05, 0.08, 0.05); cat.add(tail);
+    cat.position.set(-4.6, FLOOR, 2.1);
+    cat.rotation.y = 0.5;
+    this.house.add(cat);
+    this.animate((t) => (cb.scale.y = 0.7 + Math.sin(t * 1.6) * 0.03));
   }
 
   photo(x, y, z, ry, kind, w = 0.55, hh = 0.42) {

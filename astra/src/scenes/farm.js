@@ -11,6 +11,7 @@ import { makeNPC, buildCharacter } from '../systems/character.js';
 import { boxCollider } from '../systems/physics.js';
 import { fbm, mulberry32, smoothstep, clamp } from '../core/noise.js';
 import { arrival, rewardCore, addReturnCar } from './common.js';
+import * as D from '../world/details.js';
 
 const FARMSTEAD = new THREE.Vector3(0, 0, 26);
 const FIELDS = [new THREE.Vector3(-22, 0, -2), new THREE.Vector3(22, 0, 2)];
@@ -148,6 +149,65 @@ export default class FarmWorld extends World {
     this.buildFarmstead();
     this.buildCrops();
     this.buildSheep(rng);
+    this.decorate(q);
+  }
+
+  decorate(q) {
+    const s = this.scene, sunDir = this.sunDir;
+    const H = (x, z) => this.terrainH(x, z);
+    const free = (x, z) => !this.nearFarm(x, z) && FIELDS.every((f) => Math.hypot(x - f.x, z - f.z) > 17) && Math.abs(x + 6) > 2.5 && Math.abs(z + 18) > 2.5;
+    const area = (r0, r1, filt = free) => (rng) => { const a = rng() * 6.28, r = r0 + rng() * (r1 - r0); const x = Math.cos(a) * r, z = 10 + Math.sin(a) * r; return filt(x, z) && !this.isWheat(x, z) ? [x, z] : null; };
+
+    // fences circling the crop fields, open toward the farmstead
+    for (const f of FIELDS) {
+      const pts = [];
+      const gap = Math.atan2(FARMSTEAD.z - f.z, FARMSTEAD.x - f.x);
+      for (let i = 0; i <= 18; i++) {
+        const a = gap + 0.45 + (i / 18) * (Math.PI * 2 - 0.9);
+        pts.push([f.x + Math.cos(a) * 16, f.z + Math.sin(a) * 16]);
+      }
+      s.add(D.fence(pts, H, { color: '#d9c7a4', spacing: 2.6 }));
+      this.add(D.scarecrow(f.x, H(f.x, f.z), f.z, gap + Math.PI / 2));
+    }
+    // sunflower rows along the irrigation channel
+    const sf = [];
+    for (let z = -40; z < 42; z += 1.3) {
+      if (Math.abs(z + 18) < 3 || Math.abs(z - 10) < 3) continue;
+      for (const x of [-8.3, -3.7]) if (!this.nearFarm(x, z)) sf.push({ x: x + Math.sin(z) * 0.2, y: H(x, z), z, s: 0.85 + ((z * 7) % 3) * 0.1, ry: 0.4 });
+    }
+    s.add(D.makeSunflowers(sf));
+    // plank bridge over the channel
+    const bridge = new THREE.Group();
+    for (let i = 0; i < 7; i++) bridge.add(box(0.36, 0.1, 2.6, '#9a6b45', -7.1 + i * 0.37, 0.28, 10));
+    for (const z of [8.8, 11.2]) bridge.add(box(2.8, 0.08, 0.08, '#6b4b33', -6, 0.75, z));
+    s.add(bridge);
+
+    // farmstead life
+    for (let i = 0; i < 4; i++) this.add(D.beehive(-18 + i * 1.6, H(-18 + i * 1.6, 19), 19));
+    this.add(D.well(20, H(20, 21), 21));
+    this.add(D.barrel(-2.5, H(-2.5, 31), 31, 1), D.barrel(-1.6, H(-1.6, 31.6), 31.6, 0.9));
+    this.add(D.crate(-3, H(-3, 29.5), 29.5, 0.8, 0.3), D.crate(-3.1, H(-3.1, 29.5) + 0.8, 29.5, 0.6, 0.8));
+    for (let i = 0; i < 5; i++) {
+      const c = D.crate(9.5 + (i % 3) * 0.95, H(10, 18), 16.8 + Math.floor(i / 3) * 0.95, 0.8, i);
+      for (let k = 0; k < 4; k++) c.add(sphere(0.15, i % 2 ? '#f28a3c' : '#9ad05a', -0.2 + (k % 2) * 0.4, 0.45, -0.2 + Math.floor(k / 2) * 0.4));
+      this.add(c);
+    }
+    this.colliders.push({ type: 'box', minX: 9, maxX: 12.4, minZ: 16.3, maxZ: 18.5 });
+    this.add(D.woodpile(14, H(14, 33), 33));
+    this.add(D.makeChickens({ count: 8, area: { x0: -1, x1: 8, z0: 20, z1: 24 }, heightAt: H, seed: 4 }));
+    this.add(D.laundryLine(14, 26, 20, 26, H));
+    s.add(D.stringLights(new THREE.Vector3(-3.5, 5.2, 28), new THREE.Vector3(7, 3.3, 29), { bulbs: 12 }));
+    for (const [x, z] of [[-3, -22], [-3, -8], [-3, 6]]) this.add(D.lampPost(x, H(x, z), z));
+    this.add(D.signpost(-1.5, H(-1.5, -26), -26, 0.3, ['FARM', 'MILL']));
+
+    // ground cover and life
+    this.add(D.makeBushes(D.samplePoints(Math.floor(110 * q), area(20, 110), H, 21), { sunDir, palette: ['#4f8f3e', '#6aab4a', '#86c05a'] }));
+    s.add(D.makeFerns(D.samplePoints(Math.floor(120 * q), area(25, 100), H, 22)));
+    s.add(D.makeMushrooms(D.samplePoints(40, (r) => { const a = r() * 6.28, rr = 3 + r() * 9; const t = r() < 0.5 ? [-30, 34] : [40, -30]; return [t[0] + Math.cos(a) * rr, t[1] + Math.sin(a) * rr]; }, H, 23)));
+    s.add(D.makePebbles(D.samplePoints(200, area(5, 60), H, 24)));
+    this.add(D.makeButterflies({ count: 44, center: new THREE.Vector3(0, 0, 8), radius: 45, heightAt: H, colors: ['#ffffff', '#ffd23f', '#f2703c', '#8fd0ff'] }));
+    this.add(D.makeBirds({ count: 16, center: new THREE.Vector3(10, 70, 20), radius: 130 }));
+    this.add(D.makeBirds({ count: 9, center: new THREE.Vector3(-60, 48, -40), radius: 70, seed: 3 }));
   }
 
   isWheat(x, z) {

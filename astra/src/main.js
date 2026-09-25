@@ -1,4 +1,4 @@
-// ASTRA — GameStateManager. Boots the engine and systems, owns the main loop,
+// 3RD WORLD — GameStateManager. Boots the engine and systems, owns the main loop,
 // switches worlds (lazily imported) and routes input to the active controller.
 import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';

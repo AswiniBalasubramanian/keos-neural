@@ -358,9 +358,28 @@ export function makeTerrain({ size = 600, seg = 200, heightAt, colorAt, cx = 0, 
   }
   g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   g.computeVertexNormals();
-  const m = new THREE.Mesh(g, toon('#ffffff', { vertexColors: true }));
+  const mat = toon('#ffffff', { vertexColors: true });
+  const uTime = { value: 0 };
+  // painted ground: brush-scale colour variation, directional strokes and drifting cloud shadows
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = uTime;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec3 vWPos; uniform float uTime;\n${NOISE_GLSL}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float bn = vnoise(vWPos.xz * 0.35) * 0.55 + vnoise(vWPos.xz * 1.6) * 0.45;
+        float strokes = vnoise(vec2(vWPos.x * 0.8 + vWPos.z * 0.35, vWPos.z * 2.6));
+        float speck = step(0.93, hash21(floor(vWPos.xz * 4.0)));
+        diffuseColor.rgb *= 0.88 + bn * 0.24 + (strokes - 0.5) * 0.1 + speck * 0.06;
+        float cs = smoothstep(0.38, 0.72, vnoise(vWPos.xz * 0.012 + uTime * vec2(0.012, 0.006)));
+        diffuseColor.rgb *= 1.0 - cs * 0.2;`);
+  };
+  const m = new THREE.Mesh(g, mat);
   m.position.set(cx, 0, cz);
   m.receiveShadow = true;
+  m.userData.update = (t) => (uTime.value = t);
   return m;
 }
 
@@ -773,13 +792,14 @@ export function makeMirrorLake({ radius = 120, tint = '#0d1a2e', res = 1024 } = 
         vec3 V = normalize(cameraPosition - vW);
         float fr = 0.35 + 0.65*pow(1.0 - max(V.y, 0.0), 2.0);
         float streak = smoothstep(0.49, 0.5, abs(fract(vnoise(vW.xz*0.08 + time*0.03)*5.0) - 0.5));
-        vec3 col = mix(color, base.rgb, fr) + streak*0.04;
+        vec3 refl = min(base.rgb * 0.8, vec3(0.75)) * vec3(0.85, 0.9, 1.0);
+        vec3 col = mix(color, refl, fr * 0.85) + streak*0.035;
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   };
-  const lake = new Reflector(geo, { clipBias: 0.003, textureWidth: res, textureHeight: res, color: 0xffffff, shader });
+  const lake = new Reflector(geo, { clipBias: 0.003, textureWidth: res, textureHeight: res, color: tint, shader });
   lake.rotation.x = -Math.PI / 2;
   lake.userData.update = (t) => (lake.material.uniforms.time.value = t);
   return lake;

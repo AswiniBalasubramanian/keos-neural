@@ -157,7 +157,7 @@ export class HUD {
     const on = force ?? this.pause.classList.contains('hidden');
     if (!on) { this.pause.classList.add('hidden'); return false; }
     const g = this.game;
-    this.pause.innerHTML = `<div class="panel-box"><div class="sub">Paused</div><h2>Astra</h2>
+    this.pause.innerHTML = `<div class="panel-box"><div class="sub">Paused</div><h2>3rd World</h2>
       <div class="menu">
         <button class="btn" data-a="resume">Resume</button>
         <button class="btn" data-a="paint">Painterly filter · ${g.engine.painterly ? 'On' : 'Off'}</button>

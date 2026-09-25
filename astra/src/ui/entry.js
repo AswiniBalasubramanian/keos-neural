@@ -32,7 +32,7 @@ export function runEntry(game) {
     function stepName() {
       root.innerHTML = `<div class="entry-inner step">
         <div class="kicker">An interactive journey</div>
-        <h1>ASTRA</h1>
+        <h1>3RD WORLD</h1>
         <p class="tag">Helping others gives us the strength to save the people we love.</p>
         <label class="field-label" for="nick">What should we call you, explorer?</label>
         <input id="nick" class="nick" maxlength="18" autocomplete="off" placeholder="Your nickname" />

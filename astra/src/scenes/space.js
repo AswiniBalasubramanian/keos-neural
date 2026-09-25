@@ -2,8 +2,9 @@
 // asteroid belt, the home planet and three gigantic black holes (portals).
 import * as THREE from 'three';
 import { World } from './base.js';
-import { makeNebulaSky, makeStarfield, makeBlackHole, makePlanet, makeComets, makeAsteroids } from '../world/cosmic.js';
-import { glowSprite, softTexture } from '../world/kit.js';
+import { makeNebulaSky, makeStarfield, makeBlackHole, makePlanet, makeComets, makeAsteroids, makeCelestialRing } from '../world/cosmic.js';
+import { glowSprite, softTexture, canvasTexture, toon } from '../world/kit.js';
+import { mulberry32 } from '../core/noise.js';
 import { clamp } from '../core/noise.js';
 import { wait } from '../ui/overlay.js';
 
@@ -87,6 +88,61 @@ export default class SpaceWorld extends World {
     dust.frustumCulled = false;
     s.add(dust);
     this.animate((t, cam) => dm.uniforms.cam.value.copy(cam.position));
+
+    // distant painted spiral galaxies
+    const galaxy = (c1, c2, seed) => canvasTexture(512, 512, (g, w, h) => {
+      const r = mulberry32(seed);
+      g.translate(w / 2, h / 2);
+      const core = g.createRadialGradient(0, 0, 0, 0, 0, 120);
+      core.addColorStop(0, 'rgba(255,245,225,1)'); core.addColorStop(0.3, c1); core.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = core; g.beginPath(); g.arc(0, 0, 120, 0, 7); g.fill();
+      for (let i = 0; i < 2600; i++) {
+        const arm = i % 2, t = r() * 1, a = t * 9 + arm * Math.PI + (r() - 0.5) * 0.6, rr = 20 + t * 220;
+        g.fillStyle = r() < 0.7 ? c2 : 'rgba(255,255,255,0.8)';
+        g.globalAlpha = (1 - t) * 0.5 + 0.1;
+        g.beginPath(); g.arc(Math.cos(a) * rr, Math.sin(a) * rr * 0.55, r() * 2.4 + 0.4, 0, 7); g.fill();
+      }
+    });
+    [[-2600, 900, 1800, 900, 'rgba(160,200,255,0.8)', 'rgba(140,190,255,0.7)', 0.4], [2400, -700, -2200, 700, 'rgba(255,190,140,0.8)', 'rgba(255,170,200,0.6)', -0.6], [800, 1500, 3000, 500, 'rgba(200,170,255,0.8)', 'rgba(170,220,255,0.6)', 1.1]].forEach(([x, y, z, size, c1, c2, rot], i) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: galaxy(c1, c2, i + 3), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0.8 }));
+      m.position.set(x, y, z);
+      m.lookAt(0, 0, 0);
+      m.rotateZ(rot);
+      m.rotateX(0.7);
+      s.add(m);
+      this.animate((t) => (m.rotation.z += 0.00005));
+    });
+    // a ringed gas giant far off the flight lanes
+    const giant = makePlanet({ radius: 420, sunDir, seed: 12, ocean: '#c9906a', shallow: '#e8b88a', land: '#d8a07a', land2: '#f2d8b0', atmo: '#ffd8a8', cloudAmt: 0.85, glow: 0.8 });
+    giant.position.set(-2400, -300, -1200);
+    this.add(giant);
+    const gring = makeCelestialRing({ inner: 560, outer: 900, a: '#f5e6c8', b: '#d8a878', c: '#8a5a4a', opacity: 0.7 });
+    gring.position.copy(giant.position);
+    gring.rotation.set(-1.25, 0.2, 0.3);
+    this.add(gring);
+    // tumbling debris & old panels along the lanes toward the portals
+    const drng = mulberry32(77);
+    const dn = 260, dgeo = new THREE.BoxGeometry(1, 0.15, 2);
+    const debris = new THREE.InstancedMesh(dgeo, toon('#8a90a0'), dn);
+    const dd = [];
+    for (let i = 0; i < dn; i++) {
+      const p = PORTALS[i % 3].pos, t = 0.15 + drng() * 0.7;
+      const base = new THREE.Vector3().lerp(p, t).add(new THREE.Vector3((drng() - 0.5) * 260, (drng() - 0.5) * 140, (drng() - 0.5) * 260));
+      dd.push({ base, s: 0.6 + Math.pow(drng(), 3) * 7, rx: drng() * 6, ry: drng() * 6, sp: (drng() - 0.5) * 0.6 });
+      debris.setColorAt(i, new THREE.Color(['#8a90a0', '#a9203e', '#c9a860', '#6a7488'][i % 4]));
+    }
+    const dm4 = new THREE.Matrix4(), dq = new THREE.Quaternion(), de = new THREE.Euler(), dsv = new THREE.Vector3();
+    this.animate((t) => {
+      dd.forEach((d, i) => {
+        de.set(d.rx + t * d.sp, d.ry + t * d.sp * 0.7, 0);
+        dq.setFromEuler(de);
+        dm4.compose(d.base, dq, dsv.setScalar(d.s));
+        debris.setMatrixAt(i, dm4);
+      });
+      debris.instanceMatrix.needsUpdate = true;
+    });
+    debris.frustumCulled = false;
+    s.add(debris);
 
     this.vehicleLight = new THREE.PointLight('#ffe2c0', 0, 40, 1.2);
     s.add(this.vehicleLight);

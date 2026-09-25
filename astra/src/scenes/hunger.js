@@ -12,6 +12,7 @@ import { boxCollider } from '../systems/physics.js';
 import { fbm, mulberry32, smoothstep } from '../core/noise.js';
 import { wait } from '../ui/overlay.js';
 import { arrival, rewardCore, addReturnCar } from './common.js';
+import * as D from '../world/details.js';
 
 const LAKE_R = 70;
 const DOCK = { x0: 46, x1: 72, z: -20, w: 3 };
@@ -31,7 +32,7 @@ export default class HungerWorld extends World {
   terrainH(x, z) {
     const r = Math.hypot(x, z);
     if (r < LAKE_R - 2) return -2.5;
-    let h = smoothstep(LAKE_R - 2, LAKE_R + 14, r) * 2.5 - 2.5 + 0.9;
+    let h = smoothstep(LAKE_R - 6, LAKE_R + 4, r) * 3.4 - 2.5 + smoothstep(LAKE_R + 4, LAKE_R + 16, r) * 0.6;
     h += smoothstep(120, 240, r) * (fbm(x * 0.01, z * 0.01, 4) * 30 + 14);
     h += fbm(x * 0.05, z * 0.05, 2) * 0.6 * smoothstep(LAKE_R, LAKE_R + 20, r);
     return h;
@@ -64,7 +65,7 @@ export default class HungerWorld extends World {
     this.add(makeClouds({ count: 14, seed: 13, rMin: 300, rMax: 900, yMin: 80, yMax: 180, sMin: 30, sMax: 70, lit: '#ffc8a0', shadow: '#3a3050', rimColor: '#ff9a5a' }));
 
     // mirror lake — the whole universe in the water
-    const lake = makeMirrorLake({ radius: LAKE_R + 6, tint: '#0a1224', res: q < 1 ? 512 : 1024 });
+    const lake = makeMirrorLake({ radius: LAKE_R + 2, tint: '#0a1224', res: q < 1 ? 512 : 1024 });
     lake.position.y = 0;
     this.add(lake);
 
@@ -105,7 +106,7 @@ export default class HungerWorld extends World {
       heightAt: (x, z) => this.terrainH(x, z), base: '#4a4a2a', tip: '#b8a060', h: [0.3, 0.8], sunDir, wind: 1.4,
     }));
 
-    // sparse forest (west) + choppable trees near the village
+    // sparse forest (west)
     const trees = [];
     for (let i = 0; i < 70; i++) {
       const a = Math.PI * (0.55 + rng() * 0.9), r = 90 + rng() * 90;
@@ -135,6 +136,48 @@ export default class HungerWorld extends World {
 
     this.buildVillage(rng);
     this.buildResources();
+    this.decorate(q);
+  }
+
+  decorate(q) {
+    const s = this.scene, sunDir = this.sunDir;
+    const H = (x, z) => this.terrainH(x, z);
+    const nearDock = (x, z) => Math.abs(z - DOCK.z) < 5 && x > DOCK.x0 - 6;
+    // reeds along the shore
+    this.add(makeGrass({
+      count: Math.floor(5000 * q),
+      sample: (rng) => { const a = rng() * 6.28, r = LAKE_R - 1 + rng() * 6; const x = Math.cos(a) * r, z = Math.sin(a) * r; return nearDock(x, z) ? null : [x, z]; },
+      heightAt: (x, z) => Math.max(-0.3, H(x, z)), base: '#3a4a2a', tip: '#c9b27a', h: [1.0, 2.2], w: 0.07, head: true, seed: 41, wind: 1.2, sunDir,
+    }));
+    // boats: one out on the water, two pulled ashore
+    const floating = D.boat(30, 0.05, -35, 0.8);
+    floating.userData.update = (t) => { floating.position.y = 0.05 + Math.sin(t * 1.2) * 0.06; floating.rotation.z = Math.sin(t * 0.9) * 0.04; };
+    this.add(floating);
+    this.add(D.boat(79, H(79, 22) - 0.1, 22, 1.9, '#6b4b33', '#3f6fa8'));
+    this.add(D.boat(78, H(78, -32) - 0.1, -32, -1.2, '#7a5a3e', '#e0b45c'));
+    this.colliders.push({ type: 'circle', x: 79, z: 22, r: 2 }, { type: 'circle', x: 78, z: -32, r: 2 });
+    // village life
+    this.add(D.dryingRack(84, H(84, -8), -8, 0.3), D.dryingRack(110, H(110, 18), 18, -0.8));
+    for (const [x, z, sc] of [[100, -18, 0.8], [101, -17.2, 0.6], [108, -6, 0.7]]) this.add(D.crate(x, H(x, z), z, sc, x));
+    for (const [x, z] of [[99, -15.5], [92, 18], [106, 8]]) this.add(D.barrel(x, H(x, z), z, 0.85, '#5a4030'));
+    this.add(D.woodpile(86, H(86, 2), 2, 0.6));
+    const vl = (x, z, y = 3.6) => new THREE.Vector3(x, H(x, z) + y, z);
+    s.add(D.stringLights(vl(96, 18), vl(108, 14), { bulbs: 9, color: '#ffb060' }));
+    s.add(D.stringLights(vl(108, 14), vl(114, 2), { bulbs: 7, color: '#ffb060' }));
+    s.add(D.stringLights(vl(94, -24), vl(110, -8), { bulbs: 11, color: '#ffb060' }));
+    for (const [x, z] of [[82, 8], [86, -14], [74, -20]]) this.add(D.lampPost(x, H(x, z), z, { color: '#4a3426', glow: '#ffa050', height: 2.6 }));
+    // driftwood and cairns on the dry land
+    const drift = [];
+    for (let i = 0; i < 18; i++) { const a = i * 0.9 + 0.3, r = LAKE_R + 3 + (i % 4) * 2; const x = Math.cos(a) * r, z = Math.sin(a) * r; if (!nearDock(x, z)) drift.push({ x, y: H(x, z) + 0.12, z, s: 1, ry: a + 1.2, rz: Math.PI / 2, sy: 1.2 + (i % 3) * 0.5 }); }
+    s.add(D.scatter(new THREE.CylinderGeometry(0.12, 0.16, 1.6, 7), toon('#9a8a78'), drift));
+    for (const [x, z] of [[-40, 90], [30, 100], [-95, -20], [60, -90], [-20, -110], [110, 60]]) this.add(D.cairn(x, H(x, z), z, 4 + (Math.abs(x) % 3)));
+    // western forest floor and the shoreline
+    const west = (r0, r1) => (rng) => { const a = Math.PI * (0.55 + rng() * 0.9), r = r0 + rng() * (r1 - r0); return [Math.cos(a) * r, Math.sin(a) * r]; };
+    this.add(D.makeBushes(D.samplePoints(Math.floor(90 * q), west(85, 170), H, 51), { sunDir, palette: ['#5a6a3a', '#6b7a44', '#7a7a4a'] }));
+    s.add(D.makeFerns(D.samplePoints(Math.floor(100 * q), west(85, 160), H, 52), { color: '#5a6a3a' }));
+    s.add(D.makeMushrooms(D.samplePoints(50, west(90, 150), H, 53)));
+    s.add(D.makePebbles(D.samplePoints(320, (rng) => { const a = rng() * 6.28, r = LAKE_R + 1 + rng() * 14; const x = Math.cos(a) * r, z = Math.sin(a) * r; return nearDock(x, z) ? null : [x, z]; }, H, 54), '#6a6070'));
+    this.add(D.makeBirds({ count: 12, center: new THREE.Vector3(0, 40, 0), radius: 90, color: '#1a1420' }));
   }
 
   buildVillage(rng) {
@@ -211,22 +254,40 @@ export default class HungerWorld extends World {
     const st = g.missions.get('feed_world');
     const done = new Set(st?.data?.gathered || []);
     this.resources = [];
-    const treeSpots = [[80, 38], [72, 44], [92, 40], [64, 34], [100, 32]];
+    // wood that already lies on the ground: fallen branches under the old trees and driftwood on the shore
+    const woodSpots = [[80, 38, 'branch'], [72, 44, 'branch'], [92, 40, 'branch'], [66, 30, 'drift'], [100, 32, 'drift']];
     const stoneSpots = [[78, -40], [88, -44], [70, -48], [96, -36], [60, -40]];
     const s = this.scene;
-    treeSpots.forEach(([x, z], i) => {
+    woodSpots.forEach(([x, z, kind], i) => {
       const y = this.terrainH(x, z);
-      const t = new THREE.Group();
-      t.position.set(x, y, z);
-      t.add(cyl(0.3, 0.45, 4, '#5a4030', 0, 2, 0, 8));
-      for (let k = 0; k < 4; k++) { const b = cyl(0.06, 0.12, 1.8, '#5a4030', 0, 3 + k * 0.3, 0, 5); b.rotation.set(0.9, k * 1.6, 0); b.position.x = Math.cos(k * 1.6) * 0.4; b.position.z = Math.sin(k * 1.6) * 0.4; t.add(b); }
-      t.add(sphere(1.3, '#8a8a4a', 0, 4.4, 0));
-      s.add(t);
+      // the tree stays standing — only its fallen wood is gathered
+      if (kind === 'branch') {
+        const tree = new THREE.Group();
+        tree.position.set(x + 1.6, this.terrainH(x + 1.6, z - 1.2), z - 1.2);
+        tree.add(cyl(0.3, 0.45, 4, '#5a4030', 0, 2, 0, 8));
+        for (let k = 0; k < 4; k++) { const br = cyl(0.06, 0.12, 1.8, '#5a4030', 0, 3 + k * 0.3, 0, 5); br.rotation.set(0.9, k * 1.6, 0); br.position.x = Math.cos(k * 1.6) * 0.4; br.position.z = Math.sin(k * 1.6) * 0.4; tree.add(br); }
+        tree.add(sphere(1.3, '#8a8a4a', 0, 4.4, 0));
+        s.add(tree);
+        this.colliders.push({ type: 'circle', x: x + 1.6, z: z - 1.2, r: 0.5 });
+      }
+      const pile = new THREE.Group();
+      pile.position.set(x, y, z);
+      const col = kind === 'drift' ? '#b8ab98' : '#6b4b33';
+      for (let k = 0; k < (kind === 'drift' ? 3 : 5); k++) {
+        const len = kind === 'drift' ? 1.6 - k * 0.3 : 1.1 + (k % 2) * 0.4;
+        const stick = cyl(kind === 'drift' ? 0.13 : 0.06, kind === 'drift' ? 0.16 : 0.08, len, col, 0, 0.1 + k * 0.06, 0, 6);
+        stick.rotation.set(Math.PI / 2, 0, k * 0.9);
+        pile.add(stick);
+      }
+      if (kind === 'branch') for (let k = 0; k < 3; k++) { const tw = cyl(0.02, 0.03, 0.5, col, -0.3 + k * 0.3, 0.2, 0.2, 4); tw.rotation.set(0.8, k, 0.6); pile.add(tw); }
+      const glint = glowSprite('#ffd8a0', 1.3, 0.45);
+      glint.position.y = 0.5;
+      pile.add(glint);
+      s.add(pile);
       const id = 'w' + i;
-      const r = { id, kind: 'wood', obj: t, pos: new THREE.Vector3(x, y, z), taken: done.has(id) };
-      if (r.taken) t.children[t.children.length - 1].visible = false, t.scale.y = 0.4;
+      const r = { id, kind: 'wood', obj: pile, label: kind === 'drift' ? 'Collect driftwood' : 'Gather fallen branches', pos: new THREE.Vector3(x, y, z), taken: done.has(id) };
+      pile.visible = !r.taken;
       this.resources.push(r);
-      this.colliders.push({ type: 'circle', x, z, r: 0.5 });
     });
     stoneSpots.forEach(([x, z], i) => {
       const y = this.terrainH(x, z);
@@ -271,7 +332,7 @@ export default class HungerWorld extends World {
         if (r.taken) continue;
         if (r.kind === 'wood' && inv.wood >= def.wood) continue;
         if (r.kind === 'stone' && inv.stone >= def.stone) continue;
-        g.markers.set(r.id, r.pos.clone().add(new THREE.Vector3(0, r.kind === 'wood' ? 5.6 : 1.2, 0)), { size: 0.03 });
+        g.markers.set(r.id, r.pos.clone().add(new THREE.Vector3(0, 1.2, 0)), { size: 0.03 });
       }
     } else if (step === 2) g.markers.set('dock', new THREE.Vector3(DOCK.x1, 1.8, DOCK.z));
     else if (step === 3) g.markers.set('fish', new THREE.Vector3(DOCK.x0 + 1, 1.8, DOCK.z));
@@ -287,8 +348,8 @@ export default class HungerWorld extends World {
     I.add({ pos: () => this.elder.group.position, radius: 2.6, label: `Talk to ${this.elderName}`, enabled: walking, action: () => this.talkElder() });
     for (const r of this.resources) {
       I.add({
-        pos: r.pos, radius: r.kind === 'wood' ? 2.4 : 1.8,
-        label: r.kind === 'wood' ? 'Collect wood' : 'Collect stone',
+        pos: r.pos, radius: 1.9,
+        label: r.label || 'Collect stone',
         enabled: () => walking() && !r.taken && M.step('feed_world') === 1 && inv()[r.kind] < def[r.kind],
         action: () => this.gather(r),
       });
@@ -323,13 +384,14 @@ export default class HungerWorld extends World {
         { who: name, text: 'A stranger, stepping out of the dark star. Forgive us — we have nothing to offer a guest.', cam },
         { who: name, text: npc.greet },
         { who: 'player', text: 'Then let me help. What do you need?' },
-        { who: name, text: `Wood and stone from the east shore — ${def.wood} of each — to mend the dock. Then fish, the fire, and the granary.` },
+        { who: name, text: `Gather wood and stone — ${def.wood} of each — to mend the dock. Don\'t cut our trees; the wind has already dropped branches, and the lake leaves driftwood on the shore.` },
+        { who: name, text: 'Then fish, the fire, and the granary.' },
       ]);
       M.setStep('feed_world', 1);
       g.audio.sfx('mission');
       g.overlay.banner('Mission', def.title, def.description, 3200);
     } else {
-      const hints = ['', 'Dead trees to the north-east, stones to the south-east.', 'Take the wood and stone to the end of the broken dock.', 'The fish rise near the end of the dock. Be patient.', 'The fire is ready. Cook what you caught.', 'The granary is just behind me.'];
+      const hints = ['', 'Fallen branches lie under the old trees to the north-east, and driftwood on the shore. Stones are to the south-east. Leave the living trees be.', 'Take the wood and stone to the end of the broken dock.', 'The fish rise near the end of the dock. Be patient.', 'The fire is ready. Cook what you caught.', 'The granary is just behind me.'];
       await g.dialogue.say([{ who: name, text: hints[step] || 'Thank you, child.', cam }]);
     }
     g.cine.release();
@@ -343,9 +405,9 @@ export default class HungerWorld extends World {
     st.data.gathered = [...(st.data.gathered || []), r.id];
     M.give(r.kind, 1);
     if (r.kind === 'wood') {
-      g.audio.sfx('chop');
-      const t = r.obj;
-      g.tween(600, (k) => { t.rotation.z = Math.sin(k * 20) * 0.05 * (1 - k); }).then(() => { t.children[t.children.length - 1].visible = false; t.scale.y = 0.4; });
+      g.audio.sfx('pickup');
+      const o = r.obj, y0 = o.position.y;
+      g.tween(500, (k) => { o.position.y = y0 + k * 0.8; o.scale.setScalar(1 - k * 0.9); }).then(() => (o.visible = false));
     } else {
       g.audio.sfx('stone');
       const o = r.obj, y0 = o.position.y;
