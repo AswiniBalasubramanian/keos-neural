@@ -250,7 +250,7 @@ export default class KnowledgeWorld extends World {
     const robes = ['#f5efe4', '#e8d4a8', '#c9b8e8', '#a8d8e8'];
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2 + 1;
-      makeNPC(this, { gender: i % 2 ? 'male' : 'female', top: robes[i % 4], robe: robes[(i + 1) % 4], hair: '#3a2a20', scarf: '#ffcf7a', position: new THREE.Vector3(Math.cos(a) * 12, 0, Math.sin(a) * 12 + 2), yaw: a + Math.PI, phase: i });
+      makeNPC(this, { lite: true, gender: i % 2 ? 'male' : 'female', top: robes[i % 4], robe: robes[(i + 1) % 4], hair: '#3a2a20', scarf: '#ffcf7a', position: new THREE.Vector3(Math.cos(a) * 12, 0, Math.sin(a) * 12 + 2), yaw: a + Math.PI, phase: i });
     }
     const npc = this.game.content.npcs.archivist;
     this.archivist = makeNPC(this, { gender: 'female', elder: true, top: '#f5efe4', robe: '#e8d4a8', scarf: '#a9203e', position: ARCHIVIST.clone(), yaw: Math.PI * 0.85 });

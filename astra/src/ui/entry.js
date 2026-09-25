@@ -97,9 +97,9 @@ function makePreview(container, content) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   container.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(30, w / h, 0.1, 50);
-  cam.position.set(0, 1.25, 5.2);
-  cam.lookAt(0, 0.95, 0);
+  const cam = new THREE.PerspectiveCamera(28, w / h, 0.1, 50);
+  cam.position.set(0, 1.3, 4.3);
+  cam.lookAt(0, 1.0, 0);
   const key = new THREE.DirectionalLight('#ffe6c8', 2.6);
   key.position.set(2, 4, 3);
   const rim = new THREE.DirectionalLight('#f2703c', 2.2);

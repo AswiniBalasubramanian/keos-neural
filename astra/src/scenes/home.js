@@ -837,9 +837,8 @@ export default class HomeWorld extends World {
     const seat = (c, x, facing) => {
       c.group.position.set(x, FLOOR + 0.05, 2.4);
       c.group.rotation.y = facing;
-      c.parts.legL.rotation.x = c.parts.legR.rotation.x = -1.45;
-      c.parts.armL.rotation.x = c.parts.armR.rotation.x = -0.9;
-      c.group.position.y = FLOOR - 0.36;
+      c.sit();
+      c.group.position.y = FLOOR - 0.34;
     };
     const mom = buildCharacter({ gender: 'female', top: '#d8c6e6', bottom: '#e9e0f2', hair: '#5d4c46', skin: '#efcfb4' });
     this.scene.add(mom.group);
@@ -847,7 +846,7 @@ export default class HomeWorld extends World {
     this.dinnerMom = mom;
     const pl = g.player.model;
     seat(pl, 2.55, Math.PI / 2);
-    this.animate(() => { pl.parts.armR.rotation.x = -0.9 + Math.sin(g.time * 1.3) * 0.1; });
+    this.animate((t, _c, _p, dt) => { pl.animate(dt, 0, t); mom.animate(dt, 0, t); pl.parts.elbowR.rotation.x = -1.1 + Math.sin(g.time * 1.3) * 0.25; });
   }
 
   async finalShot(fromResume) {

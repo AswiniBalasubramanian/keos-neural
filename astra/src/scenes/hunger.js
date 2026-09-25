@@ -203,7 +203,7 @@ export default class HungerWorld extends World {
     this.elder = makeNPC(this, { gender: 'female', elder: true, top: '#8a5a4a', robe: '#6a4a3a', scarf: '#a9203e', position: ELDER.clone().setY(this.terrainH(ELDER.x, ELDER.z)), yaw: -2.2 });
     this.elderName = c.elder.name;
     const vs = [[100, 16, 3], [108, 4, -1.5], [84, -6, 1], [98, -20, 0.5], [110, 10, -2]];
-    vs.forEach(([x, z, yaw], i) => makeNPC(this, { gender: i % 2 ? 'male' : 'female', child: i === 3, top: ['#7a6a5a', '#6a5a4a', '#8a6a5a'][i % 3], bottom: '#5a4a3a', hair: '#2a1b17', position: new THREE.Vector3(x, this.terrainH(x, z), z), yaw, phase: i }));
+    vs.forEach(([x, z, yaw], i) => makeNPC(this, { lite: true, gender: i % 2 ? 'male' : 'female', child: i === 3, top: ['#7a6a5a', '#6a5a4a', '#8a6a5a'][i % 3], bottom: '#5a4a3a', hair: '#2a1b17', position: new THREE.Vector3(x, this.terrainH(x, z), z), yaw, phase: i }));
   }
 
   buildResources() {
