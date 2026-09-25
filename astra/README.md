@@ -16,6 +16,21 @@ npm run build        # outputs dist/astra/
 
 Dev shortcut: `/astra/?dev=home|space|farm|knowledge|hunger` jumps straight into a world as a test player.
 
+## Deploy to Vercel (own project, `3rdworld` name)
+
+The `astra/` folder is a self-contained Vite project (`package.json`, `vite.config.js`, `vercel.json`),
+so it deploys separately from the KEOS app in this repo.
+
+1. Go to **vercel.com/new** and import this GitHub repo.
+2. **Project name:** `3rdworld`. The free address becomes `https://3rdworld.vercel.app` if that name is free.
+3. **Root Directory:** `astra`. The framework and build settings come from `astra/vercel.json`.
+4. **Environment Variables** (optional, for the database): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+5. Click **Deploy**. The game is served at `/` and your admin console at `/admin`.
+6. **Custom domain** (e.g. `3rdworld.com`, if you own it): open **Settings → Domains → Add** and
+   follow Vercel's DNS instructions.
+
+CLI alternative, from inside `astra/`: `npx vercel --prod`, then choose the project name `3rdworld`.
+
 ## Database (Supabase) & private admin
 
 Without configuration the game saves to `localStorage` only. To keep a real database:
