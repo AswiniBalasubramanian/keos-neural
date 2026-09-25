@@ -7,7 +7,8 @@ import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
 import { AudioSys } from './core/audio.js';
 import { SaveSystem } from './core/save.js';
-import { loadContent } from './data/content.js';
+import { loadContent, deepMerge } from './data/content.js';
+import { ready as cloudReady, loadRemoteConfig, pullSave, flushPush } from './core/cloud.js';
 import { Overlay, wait } from './ui/overlay.js';
 import { HUD } from './ui/hud.js';
 import { XRPanel } from './ui/xrpanel.js';
@@ -73,13 +74,18 @@ class Game {
       this._afterLogin();
       return this.loadWorld(dev, {});
     }
-    await this.loadWorld('space', { attract: true });
+    cloudReady();
+    const [remote] = await Promise.all([loadRemoteConfig().catch(() => null), this.loadWorld('space', { attract: true })]);
+    if (remote) this.content = deepMerge(this.content, remote);
     this.overlay.setFadeInstant(1);
     this.overlay.fade(0, 2500);
     const res = await runEntry(this);
     this.audio.unlock();
     if (res.resume) {
       this.save.load(res.nickname);
+      // an admin may have adjusted this save in the cloud since it was last played
+      const cloud = await pullSave(res.nickname).catch(() => null);
+      if (cloud?.admin_edited_at && new Date(cloud.admin_edited_at).getTime() > (this.save.state?.stats?.lastSeen || 0)) this.save.adopt(cloud.state);
       this._afterLogin();
       await this.overlay.fade(1, 1200);
       await this.overlay.caption(`Welcome back, ${this.save.state.nickname}.`, 2200);
@@ -225,7 +231,7 @@ class Game {
 
   _setupKeys() {
     addEventListener('beforeunload', () => this.save.flush());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.save.flush(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { this.save.flush(); flushPush(); } });
   }
 
   _setupTouch() {

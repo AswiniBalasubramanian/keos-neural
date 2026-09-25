@@ -1,3 +1,5 @@
+import { pushSave } from './cloud.js';
+
 // SaveSystem: every player's progress lives in one localStorage registry keyed by
 // nickname, so the admin panel can read and manage all of them.
 
@@ -79,7 +81,16 @@ export class SaveSystem {
     const all = readAll();
     all[idOf(this.state.nickname)] = this.state;
     writeAll(all);
+    pushSave(this.state);
     try { localStorage.setItem(ACTIVE_KEY, this.state.nickname); } catch { /* ignore */ }
+  }
+
+  /** Adopt a cloud copy (e.g. after an admin edit). */
+  adopt(state) {
+    this.state = state;
+    const all = readAll();
+    all[idOf(state.nickname)] = state;
+    writeAll(all);
   }
 
   reset() {

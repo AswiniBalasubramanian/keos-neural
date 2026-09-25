@@ -1,21 +1,66 @@
 // 3rd World admin: player management, progression, and content (worlds, missions, NPCs,
-// characters, rewards). Reads the same localStorage the game writes — kept entirely
+// characters, rewards). Backed by Supabase and gated by an admin login: the database only
+// returns everyone's data to accounts listed in the `admins` table. Kept entirely
 // separate from the immersive game interface.
 import './admin.css';
-import { PLAYERS_KEY, defaultState, idOf } from '../core/save.js';
-import { DEFAULT_CONTENT, CONFIG_KEY, loadContent } from '../data/content.js';
+import { defaultState } from '../core/save.js';
+import { DEFAULT_CONTENT, deepMerge } from '../data/content.js';
+import { cloudEnabled, adminClient } from '../core/cloud.js';
 
 const root = document.getElementById('admin');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const WORLDS = ['home', 'space', 'farm', 'knowledge', 'hunger'];
 const MISSIONS = ['find_oxygen', 'harvest_day', 'share_knowledge', 'feed_world', 'home_again'];
 
-const readPlayers = () => { try { return JSON.parse(localStorage.getItem(PLAYERS_KEY) || '{}'); } catch { return {}; } };
-const writePlayers = (p) => localStorage.setItem(PLAYERS_KEY, JSON.stringify(p));
-const readOverrides = () => { try { return JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}'); } catch { return {}; } };
+const sb = adminClient();
+let CACHE = {}, SNAP = {}, CONFIG = {};
+const fresh = () => deepMerge(structuredClone(DEFAULT_CONTENT), CONFIG);
+const clean = (p) => { const { _key, _owner, _nk, ...st } = p; return st; };
+const readPlayers = () => CACHE;
+const readOverrides = () => CONFIG;
+
+async function loadData() {
+  const { data, error } = await sb.from('players').select('owner, nickname_key, state, updated_at').order('updated_at', { ascending: false });
+  if (error) throw error;
+  CACHE = {}; SNAP = {};
+  for (const r of data) {
+    const k = `${r.owner}:${r.nickname_key}`;
+    CACHE[k] = { ...r.state, _key: k, _owner: r.owner, _nk: r.nickname_key };
+    SNAP[k] = JSON.stringify(r.state);
+  }
+  const c = await sb.from('game_config').select('content').eq('id', 1).maybeSingle();
+  CONFIG = c.data?.content || {};
+  content = fresh();
+}
+
+/** Persist the players map: deletions, then any changed saves (marked as admin edits). */
+async function writePlayers(all) {
+  for (const k of Object.keys(SNAP)) {
+    if (all[k]) continue;
+    const [owner, ...nk] = k.split(':');
+    const { error } = await sb.from('players').delete().eq('owner', owner).eq('nickname_key', nk.join(':'));
+    if (error) return toast('Delete failed: ' + error.message);
+  }
+  const now = new Date().toISOString();
+  for (const [k, p] of Object.entries(all)) {
+    const st = clean(p), js = JSON.stringify(st);
+    if (SNAP[k] === js) continue;
+    const { error } = await sb.from('players').upsert({ owner: p._owner, nickname_key: p._nk, state: st, updated_at: now, admin_edited_at: now });
+    if (error) return toast('Save failed: ' + error.message);
+  }
+  CACHE = all;
+  SNAP = Object.fromEntries(Object.entries(all).map(([k, p]) => [k, JSON.stringify(clean(p))]));
+}
+
+async function saveConfig(cfg) {
+  const { error } = await sb.from('game_config').update({ content: cfg, updated_at: new Date().toISOString() }).eq('id', 1);
+  if (error) { toast('Save failed: ' + error.message); return false; }
+  CONFIG = cfg;
+  return true;
+}
 
 let tab = 'dashboard';
-let content = loadContent();
+let content = fresh();
 
 function toast(msg) {
   let t = document.querySelector('.toast');
@@ -54,10 +99,11 @@ function render() {
   root.innerHTML = `<div class="layout">
     <aside><div class="brand">3RD WORLD<small>Admin console</small></div>
       <nav>${tabs.map(([id, n]) => `<button data-tab="${id}" class="${tab === id ? 'on' : ''}">${n}</button>`).join('')}</nav>
-      <div class="foot">Data lives in this browser's storage.<br><a href="./index.html">Open the game →</a></div>
+      <div class="foot">Signed in as ${esc(ADMIN_EMAIL)}<br><a href="#" id="signout">Sign out</a> · <a href="./index.html">Open the game →</a></div>
     </aside>
     <main>${VIEWS[tab](players)}</main></div>`;
   root.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; render(); }));
+  root.querySelector('#signout').onclick = async (e) => { e.preventDefault(); await sb.auth.signOut(); boot(); };
   BIND[tab]?.(players);
 }
 
@@ -91,7 +137,7 @@ const VIEWS = {
           <td><span class="pill ${p.stage === 'complete' ? 'ok' : 'warm'}">${esc(p.stage)}</span></td>
           <td class="num">${(p.cores || []).length} / 3</td><td class="num">${done}</td>
           <td class="num">${Math.round((p.stats?.playTime || 0) / 60)} min</td><td>${ago(p.stats?.lastSeen)}</td>
-          <td class="row"><button class="b" data-edit="${esc(idOf(p.nickname))}">Edit</button><button class="b" data-reset="${esc(idOf(p.nickname))}">Reset</button><button class="b danger" data-del="${esc(idOf(p.nickname))}">Delete</button></td></tr>`;
+          <td class="row"><button class="b" data-edit="${esc(p._key)}">Edit</button><button class="b" data-reset="${esc(p._key)}">Reset</button><button class="b danger" data-del="${esc(p._key)}">Delete</button></td></tr>`;
       }).join('')}</tbody></table>` : '<div class="empty">No players yet.</div>'}</div>
       <dialog id="dlg"></dialog>`;
   },
@@ -173,10 +219,9 @@ function bindContentForm() {
       if (el.dataset.bool) v = v === 'true';
       setPath(content, el.dataset.path, v);
     });
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({ ...readOverrides(), ...content }));
-    toast('Saved');
+    saveConfig(structuredClone(content)).then((ok) => ok && toast('Saved'));
   };
-  root.querySelector('#revert').onclick = () => { content = loadContent(); render(); };
+  root.querySelector('#revert').onclick = () => { content = fresh(); render(); };
 }
 
 const BIND = {
@@ -185,13 +230,13 @@ const BIND = {
     const dlg = root.querySelector('#dlg');
     root.querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => {
       if (!confirm('Delete this player permanently?')) return;
-      delete players[b.dataset.del]; writePlayers(players); render(); toast('Player deleted');
+      delete players[b.dataset.del]; writePlayers(players).then(() => { render(); toast('Player deleted'); });
     }));
     root.querySelectorAll('[data-reset]').forEach((b) => (b.onclick = () => {
       if (!confirm('Reset this player\'s progress to the beginning?')) return;
       const p = players[b.dataset.reset];
-      players[b.dataset.reset] = defaultState(p.nickname, p.character);
-      writePlayers(players); render(); toast('Progress reset');
+      players[b.dataset.reset] = { ...defaultState(p.nickname, p.character), _key: p._key, _owner: p._owner, _nk: p._nk };
+      writePlayers(players).then(() => { render(); toast('Progress reset'); });
     }));
     root.querySelectorAll('[data-edit]').forEach((b) => (b.onclick = () => {
       const p = players[b.dataset.edit];
@@ -217,16 +262,15 @@ const BIND = {
           p.missions[mid] = { ...(p.missions[mid] || { step: 0, counts: {}, data: {} }), status: 'complete' };
         }
         dlg.querySelectorAll('[data-inv]').forEach((i) => (p.inventory[i.dataset.inv] = Math.max(0, parseInt(i.value, 10) || 0)));
-        writePlayers(players);
         dlg.close();
-        render();
-        toast('Player updated');
+        writePlayers(players).then(() => { render(); toast('Player updated'); });
       };
     }));
   },
   data(players) {
     root.querySelector('#exp').onclick = () => {
-      const blob = new Blob([JSON.stringify({ players, config: readOverrides() }, null, 2)], { type: 'application/json' });
+      const rows = Object.values(players).map((p) => ({ owner: p._owner, nickname_key: p._nk, state: clean(p) }));
+      const blob = new Blob([JSON.stringify({ players: rows, config: readOverrides() }, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'astra-backup.json';
@@ -235,17 +279,64 @@ const BIND = {
     root.querySelector('#imp').onchange = async (e) => {
       try {
         const data = JSON.parse(await e.target.files[0].text());
-        if (data.players) writePlayers({ ...players, ...data.players });
-        if (data.config) localStorage.setItem(CONFIG_KEY, JSON.stringify(data.config));
-        content = loadContent();
+        if (Array.isArray(data.players) && data.players.length) {
+          const { error } = await sb.from('players').upsert(data.players.map((r) => ({ ...r, updated_at: new Date().toISOString(), admin_edited_at: new Date().toISOString() })));
+          if (error) throw error;
+        }
+        if (data.config) await saveConfig(data.config);
+        await loadData();
         render();
         toast('Imported');
       } catch { toast('That file could not be read'); }
     };
-    root.querySelector('#resetContent').onclick = () => { if (confirm('Reset all content to defaults?')) { localStorage.removeItem(CONFIG_KEY); content = structuredClone(DEFAULT_CONTENT); render(); toast('Content reset'); } };
-    root.querySelector('#wipe').onclick = () => { if (confirm('Delete ALL players?')) { writePlayers({}); render(); toast('All players deleted'); } };
+    root.querySelector('#resetContent').onclick = () => { if (confirm('Reset all content to defaults?')) { saveConfig({}).then((ok) => { if (ok) { content = fresh(); render(); toast('Content reset'); } }); } };
+    root.querySelector('#wipe').onclick = () => { if (confirm('Delete ALL players?')) { writePlayers({}).then(() => { render(); toast('All players deleted'); }); } };
   },
 };
 
-addEventListener('storage', render);
-render();
+let ADMIN_EMAIL = '';
+
+function gate(inner) {
+  root.innerHTML = `<div style="min-height:100vh;display:grid;place-items:center;padding:20px"><div class="card" style="width:min(420px,100%)">
+    <div class="brand" style="margin-bottom:18px">3RD WORLD<small>Admin console</small></div>${inner}</div></div>`;
+}
+
+function renderSetup() {
+  gate(`<p style="color:var(--dim)">The admin console needs the Supabase database.</p>
+    <ol style="color:var(--dim);padding-left:18px;line-height:1.7">
+      <li>Run <code>supabase/migrations/0001_astra.sql</code> in your project's SQL editor.</li>
+      <li>Enable <b>Anonymous sign-ins</b> and add your admin user (email + password).</li>
+      <li>Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>, then rebuild.</li>
+    </ol>`);
+}
+
+function renderLogin(msg = '') {
+  gate(`<form id="login" style="display:grid;gap:12px">
+      <label class="f">Email<input id="em" type="email" autocomplete="username" required></label>
+      <label class="f">Password<input id="pw" type="password" autocomplete="current-password" required></label>
+      <button class="b primary" type="submit">Sign in</button>
+      <div id="msg" style="color:#ff9aa4;font-size:13px;min-height:18px">${esc(msg)}</div>
+    </form>`);
+  root.querySelector('#login').onsubmit = async (e) => {
+    e.preventDefault();
+    const m = root.querySelector('#msg');
+    m.textContent = 'Signing in…';
+    const { error } = await sb.auth.signInWithPassword({ email: root.querySelector('#em').value.trim(), password: root.querySelector('#pw').value });
+    if (error) { m.textContent = error.message; return; }
+    boot();
+  };
+}
+
+async function boot() {
+  if (!cloudEnabled) return renderSetup();
+  const { data } = await sb.auth.getSession();
+  const user = data.session?.user;
+  if (!user || user.is_anonymous) return renderLogin();
+  const { data: ok, error } = await sb.rpc('is_admin');
+  if (error || !ok) { await sb.auth.signOut(); return renderLogin('This account does not have admin access.'); }
+  ADMIN_EMAIL = user.email || '';
+  try { await loadData(); } catch (e) { return renderLogin('Could not load data: ' + e.message); }
+  render();
+}
+
+boot();

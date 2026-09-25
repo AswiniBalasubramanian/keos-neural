@@ -16,6 +16,24 @@ npm run build        # outputs dist/astra/
 
 Dev shortcut: `/astra/?dev=home|space|farm|knowledge|hunger` jumps straight into a world as a test player.
 
+## Database (Supabase) & private admin
+
+Without configuration the game saves to `localStorage` only. To keep a real database:
+
+1. Create a Supabase project and run [`supabase/migrations/0001_astra.sql`](../supabase/migrations/0001_astra.sql)
+   in its SQL editor. It creates `players`, `game_config` and `admins`, with Row Level Security.
+2. **Authentication → Providers:** enable **Anonymous sign-ins** (players get a silent session).
+3. **Authentication → Users → Add user:** your admin email + a password. The migration lists
+   that email in `admins`; edit the `insert into public.admins` line to change it.
+4. Copy `.env.example` to `.env.local`, fill in the project URL and anon key, then `npm run dev` / `npm run build`.
+
+Who can see what:
+- **Players:** each browser reads and writes only its own saves.
+- **Admin (`/astra/admin.html`):** requires your email and password. The database returns
+  everyone's data only to accounts in `admins`, so anyone else who opens the page sees nothing.
+- **Admin edits:** changes to a player's save are picked up the next time that player continues.
+  Content edits apply to everyone on their next load.
+
 ## Controls
 
 | | |
