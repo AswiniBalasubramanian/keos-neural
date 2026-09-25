@@ -75,6 +75,8 @@ export class Dialogue {
   update(dt) {
     const c = this._cur;
     if (!c) return;
+    // test hook: auto-advance (auto = true, or a function(choices) → index)
+    if (this.auto) return this._finish(c.choices ? (typeof this.auto === 'function' ? this.auto(c.choices) : 0) : 0);
     const input = this.game.input;
     if (!c.done) {
       const before = Math.floor(c.shown);

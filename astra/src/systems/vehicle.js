@@ -102,23 +102,24 @@ export function buildCar({ body = '#5f9fc4', roof = '#f1ead9', trim = '#dfe6ee' 
 
   // hover thrusters (visible when flying)
   const thrusters = new THREE.Group();
-  const ringMat = glowMat('#f2703c', 2.4, { transparent: true, opacity: 0.9 });
+  const ringMat = glowMat('#f2703c', 1.4, { transparent: true, opacity: 0.8 });
   for (const [x, z] of [[-0.82, 1.35], [0.82, 1.35], [-0.82, -1.3], [0.82, -1.3]]) {
     const r = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 8, 24), ringMat);
     r.rotation.x = Math.PI / 2;
     r.position.set(x, 0.1, z);
     thrusters.add(r);
-    const g = glowSprite('#ff9a4a', 1.6, 0.7);
+    const g = glowSprite('#ff9a4a', 0.9, 0.35);
     g.position.set(x, -0.05, z);
     thrusters.add(g);
   }
-  const exhaust = glowSprite('#ffb066', 2.2, 0.0);
-  exhaust.position.set(0, 0.6, -2.6);
+  const exhaust = glowSprite('#ffb066', 1.2, 0.0);
+  exhaust.position.set(0, 0.6, -3.2);
   thrusters.add(exhaust);
   const trailMat = new THREE.MeshBasicMaterial({ color: '#ffae6a', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   const trail = new THREE.Mesh(new THREE.ConeGeometry(0.35, 5, 12, 1, true), trailMat);
   trail.rotation.x = -Math.PI / 2;
-  trail.position.set(0, 0.6, -5);
+  trail.position.set(0, 0.6, -6.5);
+  trail.visible = false; // reads as a bar from the chase camera
   thrusters.add(trail);
   thrusters.visible = false;
   inner.add(thrusters);
@@ -133,9 +134,9 @@ export function buildCar({ body = '#5f9fc4', roof = '#f1ead9', trim = '#dfe6ee' 
       wheels.forEach((w) => { w.scale.setScalar(on ? 0.6 : 1); w.rotation.z = on ? Math.PI / 2 * Math.sign(w.position.x) * 0.9 : 0; });
     },
     setThrust(t) {
-      exhaust.material.opacity = clamp(t, 0, 1) * 0.9;
-      exhaust.scale.setScalar(2 + t * 3);
-      trailMat.opacity = clamp(t - 0.3, 0, 1) * 0.5;
+      exhaust.material.opacity = clamp(t, 0, 1) * 0.45;
+      exhaust.scale.setScalar(1.2 + t * 1.2);
+      trailMat.opacity = clamp(t - 0.3, 0, 1) * 0.22;
       trail.scale.set(1, 0.6 + t * 1.6, 1);
       ringMat.opacity = 0.6 + t * 0.4;
     },
@@ -175,6 +176,7 @@ export class VehicleController {
 
   setMode(mode) {
     this.mode = mode;
+    this._camQ = null;
     this.car.setFlying(mode === 'fly');
   }
 
@@ -267,11 +269,13 @@ export class VehicleController {
       if (gh !== null && gh !== undefined) this._cam.y = Math.max(this._cam.y, gh + 1);
       cam.position.lerp(this._cam, Math.min(1, dt * 6));
     } else {
-      const dist = 11 + this.boost * 5;
-      offset = new THREE.Vector3(0, 3.2, -dist).applyQuaternion(g.quaternion);
-      look = g.position.clone().add(new THREE.Vector3(0, 1.2, 14).applyQuaternion(g.quaternion));
-      this._cam.copy(g.position).add(offset);
-      cam.position.lerp(this._cam, Math.min(1, dt * 5));
+      // position locked to the car; only the viewing angle lags, so the car never shrinks away at speed
+      if (!this._camQ) this._camQ = g.quaternion.clone();
+      this._camQ.slerp(g.quaternion, Math.min(1, dt * 4));
+      const dist = 9.5 + this.boost * 2.5;
+      offset = new THREE.Vector3(0, 2.8, -dist).applyQuaternion(this._camQ);
+      look = g.position.clone().add(new THREE.Vector3(0, 1.2, 14).applyQuaternion(this._camQ));
+      cam.position.copy(g.position).add(offset);
       const fov = 62 + clamp(this.speed / 190, 0, 1) * 16 + this.boost * 6;
       cam.fov += (fov - cam.fov) * Math.min(1, dt * 3);
       cam.updateProjectionMatrix();

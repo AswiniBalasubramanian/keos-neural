@@ -296,6 +296,7 @@ export default class HomeWorld extends World {
     mach.add(this.statusLight);
     mach.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     h.add(mach);
+    this.colliders.push(boxCollider(-6.35, -1.95, 0.7, 0.6), boxCollider(-5.85, -3.3, 2.25, 1.5), boxCollider(-6.5, -4.5, 0.6, 0.55));
     // tube from machine to mask
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(-6.05, F + 0.95, -1.95), new THREE.Vector3(-5.8, F + 1.25, -2.4),
@@ -535,12 +536,12 @@ export default class HomeWorld extends World {
     const g = this.game, M = g.missions, I = g.interactions;
     const walking = () => g.mode === 'walk';
     I.add({
-      pos: new THREE.Vector3(-5.2, FLOOR, -2.4), radius: 1.9, label: () => 'Talk to Mother',
+      pos: new THREE.Vector3(-4.9, FLOOR, -2.2), radius: 1.8, label: () => 'Talk to Mother',
       enabled: () => walking() && !this.finaleDone,
       action: () => this.talkMother(),
     });
     I.add({
-      pos: new THREE.Vector3(-6.0, FLOOR, -1.8), radius: 1.5,
+      pos: new THREE.Vector3(-5.7, FLOOR, -1.4), radius: 1.1,
       label: () => (this.returning && M.step('home_again') >= 2 ? 'Insert Oxygen Cores × 3' : 'Inspect oxygen machine'),
       enabled: () => walking() && !this.finaleDone,
       action: () => this.inspectMachine(),
@@ -691,6 +692,7 @@ export default class HomeWorld extends World {
     const fwd = new THREE.Vector3(Math.sin(car.yaw), 0, Math.cos(car.yaw));
     g.cine.to(start.clone().addScaledVector(fwd, -14).add(new THREE.Vector3(6, 1.5, 0)), () => car.position.clone(), 1800);
     g.save.state.stage = 'space';
+    g.overlay.setFadeInstant(0, '#fff');
     await g.tween(5200, (k) => {
       const p = start.clone().addScaledVector(fwd, k * 60).add(new THREE.Vector3(0, Math.pow(k, 2.2) * 260, 0));
       car.position.copy(p);

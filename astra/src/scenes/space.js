@@ -21,7 +21,7 @@ export default class SpaceWorld extends World {
     super(game, id);
     this.mood = 'space';
     this.usesPlayer = false;
-    this.bloom = { strength: 0.9, radius: 0.7, threshold: 0.72 };
+    this.bloom = { strength: 0.7, radius: 0.6, threshold: 0.86 };
     this.grade = { vignette: 0.55, warmth: 0.05, saturation: 1.12, exposure: 1.05 };
     this.warping = false;
   }
@@ -35,11 +35,11 @@ export default class SpaceWorld extends World {
 
     const sunDir = new THREE.Vector3(0.6, 0.35, -0.72).normalize();
     this.sunDir = sunDir;
-    const sun = new THREE.DirectionalLight('#fff0dc', 3);
+    const sun = new THREE.DirectionalLight('#fff0dc', 1.5);
     sun.position.copy(sunDir).multiplyScalar(100);
     s.add(sun);
-    s.add(new THREE.HemisphereLight('#8fb8ff', '#3a1a2a', 1.0));
-    s.add(new THREE.AmbientLight('#ffffff', 0.25));
+    s.add(new THREE.HemisphereLight('#8fb8ff', '#3a1a2a', 0.7));
+    s.add(new THREE.AmbientLight('#ffffff', 0.12));
     const star = glowSprite('#ffe6b8', 520, 0.55);
     star.position.copy(sunDir).multiplyScalar(3800);
     star.material.fog = false;
@@ -81,14 +81,14 @@ export default class SpaceWorld extends World {
       vertexShader: /* glsl */ `uniform vec3 cam; varying float vA;
         void main(){ vec3 p = mod(position - cam + 250.0, 500.0) - 250.0 + cam;
           vec4 mv = viewMatrix*vec4(p,1.); gl_Position = projectionMatrix*mv; float d = -mv.z; gl_PointSize = clamp(220.0/d, 1.0, 5.0); vA = smoothstep(250.0, 60.0, d); }`,
-      fragmentShader: /* glsl */ `uniform sampler2D map; varying float vA; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vec3(0.75,0.85,1.0)*1.2, t.a*vA*0.7); }`,
+      fragmentShader: /* glsl */ `uniform sampler2D map; varying float vA; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vec3(0.75,0.85,1.0)*0.8, t.a*vA*0.45); }`,
     });
     const dust = new THREE.Points(dg, dm);
     dust.frustumCulled = false;
     s.add(dust);
     this.animate((t, cam) => dm.uniforms.cam.value.copy(cam.position));
 
-    this.vehicleLight = new THREE.PointLight('#ffb070', 0, 30);
+    this.vehicleLight = new THREE.PointLight('#ffe2c0', 0, 40, 1.2);
     s.add(this.vehicleLight);
   }
 
@@ -173,8 +173,9 @@ export default class SpaceWorld extends World {
     const u = g.engine.cinema.uniforms;
     const s = g.save.state;
     const vpos = g.vehicle.position;
-    this.vehicleLight.position.copy(vpos).add(new THREE.Vector3(0, 2, 0));
-    this.vehicleLight.intensity = 30;
+    // key light riding just above-behind the camera so the car always reads against dark space
+    this.vehicleLight.position.copy(cam.position).lerp(vpos, 0.6).add(new THREE.Vector3(0, 3, 0));
+    this.vehicleLight.intensity = 8;
 
     // gravitational lensing around the nearest black hole
     const { portal, dist } = this.nearestPortal();
@@ -309,6 +310,7 @@ export default class SpaceWorld extends World {
     const target = HOME_PLANET.clone().add(start.clone().sub(HOME_PLANET).normalize().multiplyScalar(HOME_RADIUS));
     g.cine.to(start.clone().add(new THREE.Vector3(60, 40, 60)), target, 2500);
     g.overlay.banner('Oxygen 3 / 3', 'Home is calling', '', 3200);
+    g.overlay.setFadeInstant(0, '#fff');
     await g.tween(4200, (k) => {
       car.position.lerpVectors(start, target, k * 0.97);
       car.group.lookAt(target);

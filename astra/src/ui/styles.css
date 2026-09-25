@@ -80,7 +80,7 @@ canvas { display: block; outline: none; }
 .toast.on { opacity: 1; }
 
 /* ---------------------------------------------------------------- HUD */
-.hud { position: fixed; inset: 0; z-index: 12; transition: opacity .8s; }
+.hud { position: fixed; inset: 0; z-index: 12; transition: opacity .8s; text-shadow: 0 1px 8px rgba(9,10,18,0.7); }
 .hud.off { opacity: 0; }
 .hud-tl { position: absolute; top: 26px; left: 28px; width: 290px; }
 .hud-tr { position: absolute; top: 26px; right: 28px; text-align: right; }

@@ -46,8 +46,8 @@ export default class KnowledgeWorld extends World {
   constructor(game, id) {
     super(game, id);
     this.mood = 'knowledge';
-    this.bloom = { strength: 0.75, radius: 0.65, threshold: 0.8 };
-    this.grade = { vignette: 0.4, warmth: 0.18, saturation: 1.12, exposure: 1.05 };
+    this.bloom = { strength: 0.4, radius: 0.5, threshold: 0.95 };
+    this.grade = { vignette: 0.42, warmth: 0.1, saturation: 1.15, exposure: 0.82 };
   }
 
   groundAt(x, z) {
@@ -61,8 +61,8 @@ export default class KnowledgeWorld extends World {
     const s = this.scene;
     const sunDir = new THREE.Vector3(-0.8, 0.28, -0.35).normalize();
     this.sunDir = sunDir;
-    s.fog = new THREE.FogExp2('#e8c9a8', 0.0009);
-    this.lights = addLights(s, { sunDir, sunColor: '#ffd9a0', sunIntensity: 3.0, sky: '#ffe2c0', ground: '#6a5a8a', hemi: 1.0, ambient: 0.2 });
+    s.fog = new THREE.FogExp2('#d8a88a', 0.0007);
+    this.lights = addLights(s, { sunDir, sunColor: '#ffd9a0', sunIntensity: 2.1, sky: '#d8c8e8', ground: '#5a4a7a', hemi: 0.7, ambient: 0.1 });
     this.add(makeSky({ top: '#1f2f6e', mid: '#6a78c0', horizon: '#ffcf9a', bottom: '#f0b890', sunDir, sunColor: '#ffd28a', glow: '#ffa060', glowAmt: 0.9, cirrus: 0.3, stars: 0.35 }));
 
     // the landmark: a vast black hole above the city, visible from everywhere
@@ -83,14 +83,14 @@ export default class KnowledgeWorld extends World {
     sea.position.y = -110;
     s.add(sea);
 
-    this.gold = glowMat('#ffcf7a', 1.6);
-    this.white = toon('#f5efe4');
+    this.gold = glowMat('#ffcf7a', 1.1);
+    this.white = toon('#e8dfd0');
     this.buildUpper();
     this.buildLower();
     this.add(makeMotes({ count: 400, center: new THREE.Vector3(0, -20, 40), spread: new THREE.Vector3(120, 50, 160), color: '#ffe0a0', size: 5, opacity: 0.8, rise: 0.4 }));
   }
 
-  platform(x, y, z, r, { top = '#f3ead8', rock = '#b8a898', depth = 8 } = {}) {
+  platform(x, y, z, r, { top = '#d8c6a8', rock = '#b8a898', depth = 8 } = {}) {
     const g = new THREE.Group();
     g.position.set(x, y, z);
     const disc = cyl(r, r * 0.96, 0.8, top, 0, -0.4, 0, 48);
@@ -152,7 +152,7 @@ export default class KnowledgeWorld extends World {
       fragmentShader: /* glsl */ `uniform sampler2D map; uniform float time; uniform vec3 tint; varying vec2 vUv;
         void main(){ vec4 t = texture2D(map, vUv); float scan = 0.75 + 0.25*sin(vUv.y*300.0 - time*6.0);
           float flick = 0.9 + 0.1*sin(time*23.0); float edge = smoothstep(0.0,0.03,vUv.x)*smoothstep(0.0,0.03,1.0-vUv.x)*smoothstep(0.0,0.03,vUv.y)*smoothstep(0.0,0.03,1.0-vUv.y);
-          vec3 c = tint*(0.12 + t.rgb*1.6)*scan*flick; gl_FragColor = vec4(c, (0.18 + t.a*0.8)*edge); }`,
+          vec3 c = tint*(0.12 + t.rgb*1.6)*scan*flick; gl_FragColor = vec4(c*0.7, (0.12 + t.a*0.6)*edge); }`,
     });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
     m.position.set(x, y, z);
@@ -190,7 +190,7 @@ export default class KnowledgeWorld extends World {
       rib.position.y = 7.6;
       lib.add(rib);
     }
-    const inner = glowSprite('#ffd890', 14, 0.5);
+    const inner = glowSprite('#ffd890', 10, 0.25);
     inner.position.y = 7;
     lib.add(inner);
     const books = new THREE.Group();
